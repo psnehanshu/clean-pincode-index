@@ -1,0 +1,12 @@
+<h1>Pincode {{.Pincode.Int32}}</h1>
+
+<h2>Offices under {{.Pincode.Int32}}</h2>
+<ul>
+  {{range .PostOffices}}
+  <li>
+    <a href="/pincode/{{.Pincode.Int32 }}/office/{{.ID.String}}">
+      {{.Officename.String}}
+    </a>
+  </li>
+  {{end}}
+</ul>

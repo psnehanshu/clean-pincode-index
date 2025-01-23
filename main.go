@@ -6,6 +6,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	_ "github.com/joho/godotenv/autoload"
+	"github.com/psnehanshu/cleanpincode.in/internal/queries"
 	"github.com/psnehanshu/cleanpincode.in/internal/server"
 	"go.uber.org/zap"
 )
@@ -27,10 +28,14 @@ func main() {
 	}
 	defer conn.Close(context.Background())
 
+	// Initialize queries
+	q := queries.New(conn)
+
 	// Initialize Server
 	s := &server.Server{
-		Logger: logger,
-		DB:     conn,
+		Logger:  logger,
+		DB:      conn,
+		Queries: q,
 	}
 
 	// Start server

@@ -1,1 +1,9 @@
 <h1>Welcome to CleanPincode.in</h1>
+
+<ul>
+  {{range .Pincodes}}
+  <li class="item">
+    <a href="/pincode/{{.Int32}}">{{.Int32}}</a>
+  </li>
+  {{end}}
+</ul>
