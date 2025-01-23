@@ -1,0 +1,20 @@
+<h1>{{.Title}}</h1>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Rank</th>
+      <th>Pincode</th>
+      <th>Votes</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{ range $index, $e := .Board}}
+    <tr>
+      <td>{{inc $index}}</td>
+      <td><a href="/pincode/{{$e.Pincode}}">{{$e.Pincode}}</a></td>
+      <td>{{$e.Total}}</td>
+    </tr>
+    {{end}}
+  </tbody>
+</table>

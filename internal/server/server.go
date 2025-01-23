@@ -2,15 +2,21 @@ package server
 
 import (
 	"embed"
+	"encoding/json"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
+	"text/template"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/template/html/v2"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/lestrrat-go/jwx/v3/jwk"
+	"github.com/lestrrat-go/jwx/v3/jwt"
 	"github.com/psnehanshu/cleanpincode.in/internal/queries"
 	"go.uber.org/zap"
 )
@@ -28,6 +34,13 @@ var viewsfs embed.FS
 func (s *Server) Start(addr string) error {
 	engine := html.NewFileSystem(http.FS(viewsfs), ".html")
 
+	engine.AddFuncMap(template.FuncMap{
+		// The name "inc" is what the function will be called in the template text.
+		"inc": func(i int) int {
+			return i + 1
+		},
+	})
+
 	app := fiber.New(fiber.Config{
 		Views:             engine,
 		ViewsLayout:       "views/layouts/root",
@@ -44,13 +57,13 @@ func (s *Server) Start(addr string) error {
 // Mount routes
 func (s *Server) mountRoutes(app *fiber.App) {
 	app.Get("/", func(c *fiber.Ctx) error {
-		mostUpvoted, err := s.Queries.MostUpvoted(c.Context(), queries.MostUpvotedParams{Limit: 10})
+		mostUpvoted, err := s.Queries.MostUpvoted(c.Context(), queries.MostUpvotedParams{Limit: 5})
 		if err != nil {
 			s.Logger.Errorw("failed to get most upvoted pincodes", "error", err)
 			return c.Status(http.StatusInternalServerError).SendString("failed to get most upvoted pincodes")
 		}
 
-		mostDownvoted, err := s.Queries.MostDownvoted(c.Context(), queries.MostDownvotedParams{Limit: 10})
+		mostDownvoted, err := s.Queries.MostDownvoted(c.Context(), queries.MostDownvotedParams{Limit: 5})
 		if err != nil {
 			s.Logger.Errorw("failed to get most upvoted pincodes", "error", err)
 			return c.Status(http.StatusInternalServerError).SendString("failed to get most upvoted pincodes")
@@ -59,8 +72,36 @@ func (s *Server) mountRoutes(app *fiber.App) {
 		return c.Render("views/index", fiber.Map{"MostUpvoted": mostUpvoted, "MostDownvoted": mostDownvoted})
 	})
 
+	app.Get("/about", func(c *fiber.Ctx) error {
+		return c.Render("views/about", nil)
+	})
+
+	app.Get("/contact", func(c *fiber.Ctx) error {
+		return c.Render("views/contact", nil)
+	})
+
+	app.Get("/leaderboard", func(c *fiber.Ctx) error {
+		mostUpvoted, err := s.Queries.MostUpvoted(c.Context(), queries.MostUpvotedParams{Limit: 50})
+		if err != nil {
+			s.Logger.Errorw("failed to get most upvoted pincodes", "error", err)
+			return c.Status(http.StatusInternalServerError).SendString("failed to get most upvoted pincodes")
+		}
+
+		return c.Render("views/board", fiber.Map{"Board": mostUpvoted, "Title": "Leaderboard"})
+	})
+
+	app.Get("/looserboard", func(c *fiber.Ctx) error {
+		mostDownvoted, err := s.Queries.MostDownvoted(c.Context(), queries.MostDownvotedParams{Limit: 50})
+		if err != nil {
+			s.Logger.Errorw("failed to get MostDownvoted pincodes", "error", err)
+			return c.Status(http.StatusInternalServerError).SendString("failed to get MostDownvoted pincodes")
+		}
+
+		return c.Render("views/board", fiber.Map{"Board": mostDownvoted, "Title": "Looserboard"})
+	})
+
 	app.Get("/pincode", func(c *fiber.Ctx) error {
-		page, limit := c.QueryInt("page", 1), c.QueryInt("limit", 20)
+		page, limit := c.QueryInt("page", 1), c.QueryInt("limit", 100)
 		if page < 1 {
 			page = 1
 		}
@@ -133,6 +174,115 @@ func (s *Server) mountRoutes(app *fiber.App) {
 		})
 	})
 
+	app.Get("/vote", func(c *fiber.Ctx) error {
+		pincode := c.QueryInt("pincode")
+		pincodeResult, err := s.Queries.GetByPincode(c.Context(), pgtype.Int4{Int32: int32(pincode), Valid: true})
+		if err != nil {
+			if err == pgx.ErrNoRows {
+				return c.Status(http.StatusNotFound).SendString("pincode not found")
+			} else {
+				s.Logger.Errorw("failed to get pincode", "error", err)
+				return c.Status(http.StatusInternalServerError).SendString("failed to get pincode")
+			}
+		}
+
+		return c.Render("views/vote", fiber.Map{"Pincode": pincode, "Info": pincodeResult, "ClientID": os.Getenv("GOOGLE_CLIENT_ID")})
+	})
+
+	app.Post("/google-login", func(c *fiber.Ctx) error {
+		// Extract credential from body
+		var data map[string]interface{}
+		if err := json.Unmarshal(c.Body(), &data); err != nil {
+			return c.Status(http.StatusBadRequest).SendString("invalid json")
+		}
+		credential, ok := data["credential"].(string)
+		if !ok {
+			return c.Status(http.StatusBadRequest).SendString("invalid json")
+		}
+
+		set, err := jwk.Fetch(c.Context(), "https://www.googleapis.com/oauth2/v3/certs")
+		if err != nil {
+			s.Logger.Errorw("failed to fetch jwk", "error", err)
+			return c.SendStatus(http.StatusInternalServerError)
+		}
+
+		// Validate credential
+		time.Sleep(2 * time.Second) // sleeping to prevent iat validation error
+		token, err := jwt.Parse(
+			[]byte(credential),
+			jwt.WithKeySet(set),
+			jwt.WithAudience(os.Getenv("GOOGLE_CLIENT_ID")),
+			jwt.WithIssuer("https://accounts.google.com"),
+		)
+		if err != nil {
+			s.Logger.Errorw("failed to parse token", "error", err)
+			return c.SendStatus(http.StatusUnauthorized)
+		}
+
+		getUser := func() (*queries.User, error) {
+			var email, name, pic string
+			id, ok := token.Subject()
+			if !ok {
+				s.Logger.Errorw("failed to parse sub")
+				return nil, c.SendStatus(http.StatusBadRequest)
+			}
+			if err := token.Get("email", &email); err != nil {
+				s.Logger.Errorw("failed to parse email", "error", err)
+				return nil, c.SendStatus(http.StatusBadRequest)
+			}
+			if err := token.Get("name", &name); err != nil {
+				s.Logger.Errorw("failed to parse name", "error", err)
+				return nil, c.SendStatus(http.StatusBadRequest)
+			}
+			if err := token.Get("picture", &pic); err != nil {
+				s.Logger.Errorw("failed to parse picture", "error", err)
+				return nil, c.SendStatus(http.StatusBadRequest)
+			}
+
+			// Find user
+			user, err := s.Queries.GetUserByGoogleID(c.Context(), pgtype.Text{String: id, Valid: true})
+			if err != nil {
+				if err != pgx.ErrNoRows {
+					s.Logger.Errorw("failed to get user", "error", err)
+					return nil, c.SendStatus(http.StatusInternalServerError)
+				}
+			} else {
+				return &user, nil
+			}
+
+			// Create User
+			user, err = s.Queries.CreateUser(c.Context(), queries.CreateUserParams{
+				Name: name, Email: email, Pic: pgtype.Text{String: pic, Valid: true}, GoogleID: pgtype.Text{String: id, Valid: true},
+			})
+
+			if err != nil {
+				s.Logger.Errorw("failed to create user", "error", err)
+				return nil, c.SendStatus(http.StatusInternalServerError)
+			}
+
+			return &user, nil
+		}
+
+		user, err := getUser()
+		if user == nil {
+			return nil
+		}
+		if err != nil {
+			return c.SendStatus(http.StatusInternalServerError)
+		}
+
+		// Set session
+		c.Cookie(&fiber.Cookie{
+			Name:     "logged-in-user",
+			Value:    user.ID.String(),
+			Expires:  time.Now().Add(24 * time.Hour * 365),
+			HTTPOnly: true,
+			SameSite: "Strict",
+		})
+
+		return c.JSON(fiber.Map{"user": user})
+	})
+
 	app.Get("/state", func(c *fiber.Ctx) error {
 		states, err := s.Queries.GetStates(c.Context())
 		if err != nil {
@@ -183,4 +333,8 @@ func (s *Server) mountRoutes(app *fiber.App) {
 			"Pincodes": pincodes,
 		})
 	})
+}
+
+func setSession(user queries.User) {
+	//
 }

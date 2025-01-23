@@ -1,0 +1,43 @@
+<script src="https://accounts.google.com/gsi/client" async></script>
+<script>
+  async function onGoogleLogin(response) {
+    try {
+      const body = JSON.stringify(response);
+      const data = await fetch("/google-login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body,
+      }).then((res) => res.json());
+      if (data.error) {
+        alert(data.error);
+      } else {
+        alert(data.credential);
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  }
+</script>
+
+<div
+  id="g_id_onload"
+  data-client_id="{{.ClientID}}"
+  data-context="signin"
+  data-ux_mode="popup"
+  data-callback="onGoogleLogin"
+  data-auto_prompt="false"
+></div>
+
+<div class="" style="max-width: 16rem">
+  <div
+    class="g_id_signin"
+    data-type="standard"
+    data-shape="pill"
+    data-theme="filled_blue"
+    data-text="continue_with"
+    data-size="large"
+    data-logo_alignment="left"
+  ></div>
+</div>

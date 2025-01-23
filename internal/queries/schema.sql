@@ -16,7 +16,10 @@ CREATE INDEX pincodes_Pincode_IDX ON pincodes (Pincode);
 
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    username VARCHAR(50) NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL UNIQUE,
+    google_id TEXT UNIQUE,
+    pic TEXT,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

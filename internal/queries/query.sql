@@ -44,3 +44,9 @@ from
 order by
 	(upvotes-downvotes) asc
 limit $1 offset $2;
+
+-- name: CreateUser :one
+INSERT INTO users (name, email, google_id, pic) VALUES ($1, $2, $3, $4) RETURNING *;
+
+-- name: GetUserByGoogleID :one
+SELECT * FROM users WHERE google_id = $1;
