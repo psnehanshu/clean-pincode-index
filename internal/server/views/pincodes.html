@@ -1,0 +1,10 @@
+<ul>
+  {{range .Pincodes}}
+  <li>
+    <a href="/pincode/{{.Int32}}">{{.Int32}}</a>
+  </li>
+  {{end}}
+</ul>
+
+<a href="/pincodes?limit={{.Limit}}&page={{.PrevPage}}">&larr; Previous</a>
+<a href="/pincodes?limit={{.Limit}}&page={{.NextPage}}">Next &rarr;</a>
