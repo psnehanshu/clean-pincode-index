@@ -44,16 +44,19 @@ func (s *Server) Start(addr string) error {
 // Mount routes
 func (s *Server) mountRoutes(app *fiber.App) {
 	app.Get("/", func(c *fiber.Ctx) error {
-		// Fetch pincodes
-		pincodes, err := s.Queries.GetPincodes(c.Context(), queries.GetPincodesParams{
-			Limit: 10, Offset: 0,
-		})
+		mostUpvoted, err := s.Queries.MostUpvoted(c.Context(), queries.MostUpvotedParams{Limit: 10})
 		if err != nil {
-			s.Logger.Errorw("failed to get pincodes", "error", err)
-			return c.Status(http.StatusInternalServerError).SendString("failed to get pincodes")
+			s.Logger.Errorw("failed to get most upvoted pincodes", "error", err)
+			return c.Status(http.StatusInternalServerError).SendString("failed to get most upvoted pincodes")
 		}
 
-		return c.Render("views/index", fiber.Map{"Pincodes": pincodes})
+		mostDownvoted, err := s.Queries.MostDownvoted(c.Context(), queries.MostDownvotedParams{Limit: 10})
+		if err != nil {
+			s.Logger.Errorw("failed to get most upvoted pincodes", "error", err)
+			return c.Status(http.StatusInternalServerError).SendString("failed to get most upvoted pincodes")
+		}
+
+		return c.Render("views/index", fiber.Map{"MostUpvoted": mostUpvoted, "MostDownvoted": mostDownvoted})
 	})
 
 	app.Get("/pincode", func(c *fiber.Ctx) error {
@@ -113,8 +116,12 @@ func (s *Server) mountRoutes(app *fiber.App) {
 		// Calculate votes
 		votes, err := s.Queries.GetPincodeVotes(c.Context(), pincode.Int32)
 		if err != nil {
-			s.Logger.Errorw("failed to get pincode votes", "error", err)
-			return c.Status(http.StatusInternalServerError).SendString("failed to get pincode votes")
+			if err == pgx.ErrNoRows {
+				votes.Pincode = pincode.Int32
+			} else {
+				s.Logger.Errorw("failed to get pincode votes", "error", err)
+				return c.Status(http.StatusInternalServerError).SendString("failed to get pincode votes")
+			}
 		}
 
 		return c.Render("views/pincode", fiber.Map{

@@ -1,9 +1,19 @@
 <h1>Welcome to CleanPincode.in</h1>
 
+<h2>Cleanest</h2>
 <ul>
-  {{range .Pincodes}}
+  {{range .MostUpvoted}}
   <li class="item">
-    <a href="/pincode/{{.Int32}}">{{.Int32}}</a>
+    <a href="/pincode/{{.Pincode}}">{{.Pincode}}</a> ({{.Total}})
+  </li>
+  {{end}}
+</ul>
+
+<h2>Dirtiest</h2>
+<ul>
+  {{range .MostDownvoted}}
+  <li class="item">
+    <a href="/pincode/{{.Pincode}}">{{.Pincode}}</a> ({{.Total}})
   </li>
   {{end}}
 </ul>

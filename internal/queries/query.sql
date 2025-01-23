@@ -24,3 +24,23 @@ ORDER BY Pincode;
 -- name: GetPincodeVotes :one
 SELECT * FROM votes_by_pincode
 WHERE pincode = $1;
+
+-- name: MostUpvoted :many
+select
+	pincode,
+	(upvotes-downvotes) total
+from
+	votes_by_pincode
+order by
+	(upvotes-downvotes) desc
+limit $1 offset $2;
+
+-- name: MostDownvoted :many
+select
+	pincode,
+	(upvotes-downvotes) total
+from
+	votes_by_pincode
+order by
+	(upvotes-downvotes) asc
+limit $1 offset $2;
