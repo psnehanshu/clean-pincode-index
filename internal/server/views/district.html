@@ -1,0 +1,9 @@
+<h1>{{.District}}, {{.State}}</h1>
+
+<ul>
+  {{range .Pincodes}}
+  <li>
+    <a href="/pincode/{{.Int32}}">{{.Int32}}</a>
+  </li>
+  {{end}}
+</ul>

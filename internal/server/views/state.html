@@ -1,0 +1,10 @@
+{{$state := .State}}
+<h1>{{.State}}</h1>
+
+<ul>
+  {{range .Districts}}
+  <li>
+    <a href="/state/{{$state}}/district/{{.String}}"> {{.String}} </a>
+  </li>
+  {{end}}
+</ul>

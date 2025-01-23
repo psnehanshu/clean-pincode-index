@@ -3,10 +3,6 @@
 <h2>Offices</h2>
 <ul>
   {{range .PostOffices}}
-  <li>
-    <a href="/pincode/{{.Pincode.Int32 }}/office/{{.ID.String}}">
-      {{.Officename.String}}
-    </a>
-  </li>
+  <li>{{.Officename.String}}</li>
   {{end}}
 </ul>

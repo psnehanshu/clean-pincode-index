@@ -3,6 +3,7 @@ package server
 import (
 	"embed"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -26,6 +27,7 @@ var viewsfs embed.FS
 // Start the web server
 func (s *Server) Start(addr string) error {
 	engine := html.NewFileSystem(http.FS(viewsfs), ".html")
+
 	app := fiber.New(fiber.Config{
 		Views:             engine,
 		ViewsLayout:       "views/layouts/root",
@@ -54,7 +56,7 @@ func (s *Server) mountRoutes(app *fiber.App) {
 		return c.Render("views/index", fiber.Map{"Pincodes": pincodes})
 	})
 
-	app.Get("/pincodes", func(c *fiber.Ctx) error {
+	app.Get("/pincode", func(c *fiber.Ctx) error {
 		page, limit := c.QueryInt("page", 1), c.QueryInt("limit", 20)
 		if page < 1 {
 			page = 1
@@ -73,7 +75,8 @@ func (s *Server) mountRoutes(app *fiber.App) {
 		}
 
 		return c.Render("views/pincodes", fiber.Map{
-			"Pincodes": pincodes, "Limit": limit, "Page": page, "NextPage": page + 1, "PrevPage": page - 1,
+			"Pincodes": pincodes,
+			"Limit":    limit, "Page": page, "NextPage": page + 1, "PrevPage": page - 1,
 		})
 	})
 
@@ -110,7 +113,58 @@ func (s *Server) mountRoutes(app *fiber.App) {
 		return c.Render("views/pincode", fiber.Map{
 			"PostOffices": pincodeResult,
 			"Pincode":     pincode,
-			"State":       strings.Join(states, ", "),
+			"State":       strings.Join(states, "/"),
+		})
+	})
+
+	app.Get("/state", func(c *fiber.Ctx) error {
+		states, err := s.Queries.GetStates(c.Context())
+		if err != nil {
+			s.Logger.Errorw("failed to get states", "error", err)
+			return c.Status(http.StatusInternalServerError).SendString("failed to get states")
+		}
+
+		return c.Render("views/states", fiber.Map{"States": states})
+	})
+
+	app.Get("/state/:state", func(c *fiber.Ctx) error {
+		state, err := url.QueryUnescape(c.Params("state"))
+		if err != nil {
+			return c.SendStatus(http.StatusBadRequest)
+		}
+
+		districts, err := s.Queries.GetDistricts(c.Context(), pgtype.Text{String: state, Valid: true})
+		if err != nil {
+			s.Logger.Errorw("failed to get districts", "error", err)
+			return c.Status(http.StatusInternalServerError).SendString("failed to get districts")
+		}
+
+		return c.Render("views/state", fiber.Map{"Districts": districts, "State": state})
+	})
+
+	app.Get("/state/:state/district/:district", func(c *fiber.Ctx) error {
+		state, err := url.QueryUnescape(c.Params("state"))
+		if err != nil {
+			return c.SendStatus(http.StatusBadRequest)
+		}
+		district, err := url.QueryUnescape(c.Params("district"))
+		if err != nil {
+			return c.SendStatus(http.StatusBadRequest)
+		}
+
+		pincodes, err := s.Queries.GetPincodeByDistrict(c.Context(), queries.GetPincodeByDistrictParams{
+			District:  pgtype.Text{String: district, Valid: true},
+			Statename: pgtype.Text{String: state, Valid: true},
+		})
+		if err != nil {
+			s.Logger.Errorw("failed to get pincodes", "error", err)
+			return c.Status(http.StatusInternalServerError).SendString("failed to get pincodes")
+		}
+
+		return c.Render("views/district", fiber.Map{
+			"State":    state,
+			"District": district,
+			"Pincodes": pincodes,
 		})
 	})
 }
