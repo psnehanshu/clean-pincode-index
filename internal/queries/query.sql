@@ -50,3 +50,9 @@ INSERT INTO users (name, email, google_id, pic) VALUES ($1, $2, $3, $4) RETURNIN
 
 -- name: GetUserByGoogleID :one
 SELECT * FROM users WHERE google_id = $1;
+
+-- name: GetUserByID :one
+SELECT * FROM users WHERE id = $1;
+
+-- name: GetVote :one
+SELECT * FROM votes WHERE pincode = $1 AND voter_id = $2;

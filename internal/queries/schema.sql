@@ -35,6 +35,8 @@ CREATE INDEX votes_type_idx ON votes (type);
 ALTER TABLE votes
 ADD CONSTRAINT votes_users_fk
 FOREIGN KEY (voter_id) REFERENCES users(id);
+ALTER TABLE votes ADD CONSTRAINT votes_user_pincode_uk UNIQUE (pincode,voter_id);
+
 
 CREATE TABLE vote_pics (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

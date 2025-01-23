@@ -3,6 +3,7 @@ package server
 import (
 	"embed"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"os"
@@ -15,6 +16,7 @@ import (
 	"github.com/gofiber/template/html/v2"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/lestrrat-go/jwx/v3/jwa"
 	"github.com/lestrrat-go/jwx/v3/jwk"
 	"github.com/lestrrat-go/jwx/v3/jwt"
 	"github.com/psnehanshu/cleanpincode.in/internal/queries"
@@ -175,18 +177,61 @@ func (s *Server) mountRoutes(app *fiber.App) {
 	})
 
 	app.Get("/vote", func(c *fiber.Ctx) error {
-		pincode := c.QueryInt("pincode")
+		pincode := c.QueryInt("pin")
 		pincodeResult, err := s.Queries.GetByPincode(c.Context(), pgtype.Int4{Int32: int32(pincode), Valid: true})
 		if err != nil {
-			if err == pgx.ErrNoRows {
-				return c.Status(http.StatusNotFound).SendString("pincode not found")
+			s.Logger.Errorw("failed to get pincode", "error", err)
+			return c.Status(http.StatusInternalServerError).SendString("failed to get pincode")
+		}
+
+		if len(pincodeResult) == 0 {
+			return c.Status(http.StatusNotFound).SendString("pincode not found")
+		}
+
+		// Check logged in status
+		var user *queries.User
+		loggedInUserId, err := getUserIdFromLoginJWT(c.Cookies("logged-in-user"))
+		if err == nil {
+			var uuid pgtype.UUID
+			if err := uuid.Scan(loggedInUserId); err != nil {
+				s.Logger.Warn("failed to parse logged-in-user cookie", err)
 			} else {
-				s.Logger.Errorw("failed to get pincode", "error", err)
-				return c.Status(http.StatusInternalServerError).SendString("failed to get pincode")
+				u, err := s.Queries.GetUserByID(c.Context(), uuid)
+				if err != nil {
+					if err != pgx.ErrNoRows {
+						s.Logger.Errorw("failed to get user by id", "error", err)
+						return c.Status(http.StatusInternalServerError).SendString("failed to get user")
+					}
+				} else {
+					user = &u
+				}
 			}
 		}
 
-		return c.Render("views/vote", fiber.Map{"Pincode": pincode, "Info": pincodeResult, "ClientID": os.Getenv("GOOGLE_CLIENT_ID")})
+		// fetch existing vote
+		var vote *queries.Vote
+		if user != nil {
+			// fetch existing vote
+			v, err := s.Queries.GetVote(c.Context(), queries.GetVoteParams{
+				Pincode: int32(pincode), VoterID: user.ID,
+			})
+			if err != nil {
+				if err != pgx.ErrNoRows {
+					s.Logger.Errorw("failed to get vote", "error", err)
+					return c.Status(http.StatusInternalServerError).SendString("failed to get vote")
+				}
+			} else {
+				vote = &v
+			}
+		}
+
+		return c.Render("views/vote", fiber.Map{
+			"Pincode":  pincode,
+			"Info":     pincodeResult,
+			"ClientID": os.Getenv("GOOGLE_CLIENT_ID"),
+			"User":     user,
+			"Vote":     vote,
+		})
 	})
 
 	app.Post("/google-login", func(c *fiber.Ctx) error {
@@ -272,15 +317,29 @@ func (s *Server) mountRoutes(app *fiber.App) {
 		}
 
 		// Set session
+		expiresAt := time.Now().Add(24 * time.Hour * 365)
+		loginToken, err := generateLoginJWT(user, expiresAt)
+		if err != nil {
+			s.Logger.Errorw("failed to generate login token", "error", err)
+			return c.SendStatus(http.StatusInternalServerError)
+		}
+
 		c.Cookie(&fiber.Cookie{
 			Name:     "logged-in-user",
-			Value:    user.ID.String(),
-			Expires:  time.Now().Add(24 * time.Hour * 365),
+			Value:    loginToken,
+			Expires:  expiresAt,
 			HTTPOnly: true,
 			SameSite: "Strict",
 		})
 
 		return c.JSON(fiber.Map{"user": user})
+	})
+
+	app.Get("/logout", func(c *fiber.Ctx) error {
+		c.ClearCookie("logged-in-user")
+
+		redirect := c.Query("return", "/")
+		return c.Redirect(redirect)
 	})
 
 	app.Get("/state", func(c *fiber.Ctx) error {
@@ -335,6 +394,37 @@ func (s *Server) mountRoutes(app *fiber.App) {
 	})
 }
 
-func setSession(user queries.User) {
-	//
+func generateLoginJWT(user *queries.User, expiry time.Time) (string, error) {
+	claims := jwt.New()
+	claims.Set(jwt.SubjectKey, user.ID.String())
+	claims.Set(jwt.IssuerKey, "cleanpincode.in")
+	claims.Set(jwt.AudienceKey, "cleanpincode.in")
+	claims.Set(jwt.IssuedAtKey, time.Now())
+	claims.Set(jwt.ExpirationKey, expiry)
+	claims.Set(jwt.NotBeforeKey, time.Now())
+
+	token, err := jwt.Sign(claims, jwt.WithKey(jwa.HS256(), []byte(os.Getenv("JWT_PRIVATE_KEY"))))
+	if err != nil {
+		return "", err
+	}
+
+	return string(token), nil
+}
+
+func getUserIdFromLoginJWT(token string) (string, error) {
+	t, err := jwt.Parse(
+		[]byte(token),
+		jwt.WithKey(jwa.HS256(), []byte(os.Getenv("JWT_PRIVATE_KEY"))),
+		jwt.WithAudience("cleanpincode.in"),
+		jwt.WithIssuer("cleanpincode.in"),
+	)
+	if err != nil {
+		return "", err
+	}
+
+	if sub, ok := t.Subject(); ok {
+		return sub, nil
+	} else {
+		return "", fmt.Errorf("subject not found")
+	}
 }
