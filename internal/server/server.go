@@ -110,10 +110,19 @@ func (s *Server) mountRoutes(app *fiber.App) {
 			states = append(states, p.Statename.String)
 		}
 
+		// Calculate votes
+		votes, err := s.Queries.GetPincodeVotes(c.Context(), pincode.Int32)
+		if err != nil {
+			s.Logger.Errorw("failed to get pincode votes", "error", err)
+			return c.Status(http.StatusInternalServerError).SendString("failed to get pincode votes")
+		}
+
 		return c.Render("views/pincode", fiber.Map{
 			"PostOffices": pincodeResult,
 			"Pincode":     pincode,
 			"State":       strings.Join(states, "/"),
+			"Votes":       votes,
+			"TotalVotes":  votes.Upvotes - votes.Downvotes,
 		})
 	})
 

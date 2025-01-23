@@ -20,3 +20,7 @@ ORDER BY District;
 SELECT DISTINCT Pincode FROM pincodes
 WHERE District = $1 AND StateName = $2
 ORDER BY Pincode;
+
+-- name: GetPincodeVotes :one
+SELECT * FROM votes_by_pincode
+WHERE pincode = $1;

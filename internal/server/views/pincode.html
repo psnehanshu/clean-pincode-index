@@ -1,5 +1,20 @@
 <h1>Pincode {{.Pincode.Int32}}, {{.State}}</h1>
 
+<table>
+  <tr>
+    <th>Total</th>
+    <td>{{.TotalVotes}}</td>
+  </tr>
+  <tr>
+    <th>Up-votes</th>
+    <td>{{.Votes.Upvotes}}</td>
+  </tr>
+  <tr>
+    <th>Down-votes</th>
+    <td>{{.Votes.Downvotes}}</td>
+  </tr>
+</table>
+
 <h2>Offices</h2>
 <ul>
   {{range .PostOffices}}
