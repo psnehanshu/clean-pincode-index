@@ -20,7 +20,7 @@ CREATE TABLE users (
     email TEXT NOT NULL UNIQUE,
     google_id TEXT UNIQUE,
     pic TEXT,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TYPE vote_type AS ENUM ('up', 'down');
@@ -29,7 +29,8 @@ CREATE TABLE votes (
     type vote_type NOT NULL,
     pincode INTEGER NOT NULL,
     voter_id UUID NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX votes_type_idx ON votes (type);
 ALTER TABLE votes
@@ -37,12 +38,27 @@ ADD CONSTRAINT votes_users_fk
 FOREIGN KEY (voter_id) REFERENCES users(id);
 ALTER TABLE votes ADD CONSTRAINT votes_user_pincode_uk UNIQUE (pincode,voter_id);
 
+CREATE OR REPLACE FUNCTION update_modified_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$
+ language 'plpgsql';
+
+CREATE TRIGGER update_votes_modtime
+BEFORE UPDATE ON votes
+FOR EACH ROW
+EXECUTE FUNCTION update_modified_column();
+
+
 
 CREATE TABLE vote_pics (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     link TEXT NOT NULL,
     vote_id UUID NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 ALTER TABLE vote_pics
 ADD CONSTRAINT votes_pics_fk

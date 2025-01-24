@@ -57,6 +57,13 @@
   <input type="submit" value="upvote" name="vote_type" />
   <input type="submit" value="downvote" name="vote_type" />
 </form>
+{{else}}
+<p>
+  You have already voted for this pincode. You can either
+  <a href="/update-vote?id={{.Vote.ID.String}}">update</a> your vote or
+  <a href="/delete-vote?id={{.Vote.ID.String}}">delete</a>
+  it.
+</p>
 {{end}}
 <!---->
 {{end}}

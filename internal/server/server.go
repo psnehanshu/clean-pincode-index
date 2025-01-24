@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"os"
@@ -263,7 +264,110 @@ func (s *Server) mountRoutes(app *fiber.App) {
 	})
 
 	app.Post("/vote", func(c *fiber.Ctx) error {
-		return nil
+		user, err := s.getUserFromSession(c)
+		if err != nil {
+			s.logger.Errorw("session error", "error", err)
+			return fiber.NewError(http.StatusUnauthorized)
+		}
+
+		// Parse the multipart form
+		form, err := c.MultipartForm()
+		if err != nil {
+			return err
+		}
+
+		// Extract vote type
+		var voteType queries.VoteType
+		{
+			vt, ok := form.Value["vote_type"]
+			if !ok || len(vt) == 0 || vt[0] == "" {
+				return fiber.NewError(http.StatusBadRequest, "no vote type submitted")
+			} else {
+				switch vt[0] {
+				case "upvote":
+					voteType = queries.VoteTypeUp
+				case "downvote":
+					voteType = queries.VoteTypeDown
+				default:
+					return fiber.NewError(http.StatusBadRequest, fmt.Sprintf("invalid vote type: %s", vt[0]))
+				}
+			}
+		}
+
+		// extract pincode
+		var pincode int
+		{
+			pincodes, ok := form.Value["pincode"]
+			if !ok || len(pincodes) == 0 || pincodes[0] == "" {
+				return fiber.NewError(http.StatusBadRequest, "no pincode submitted")
+			} else {
+				pincode, err = strconv.Atoi(pincodes[0])
+				if err != nil {
+					return fiber.NewError(http.StatusBadRequest, "pincode must be numeric")
+				}
+			}
+		}
+
+		// Fetch existing vote
+		var vote *queries.Vote
+		{
+			v, err := s.queries.GetVote(c.Context(), queries.GetVoteParams{
+				Pincode: int32(pincode), VoterID: user.ID,
+			})
+			if err != nil {
+				if err != pgx.ErrNoRows {
+					return err
+				}
+			} else {
+				vote = &v
+			}
+		}
+
+		// Record vote (with transaction)
+		tx, err := s.db.Begin(c.Context())
+		if err != nil {
+			return err
+		}
+		qtx := s.queries.WithTx(tx)
+
+		if vote == nil {
+			// new vote
+			v, err := qtx.CreateVote(c.Context(), queries.CreateVoteParams{
+				Type: voteType, Pincode: int32(pincode), VoterID: user.ID,
+			})
+			if err != nil {
+				return err
+			}
+
+			vote = &v
+		} else {
+			// update existing vote
+			err := qtx.UpdateExistingVote(c.Context(), queries.UpdateExistingVoteParams{
+				Type: voteType, ID: vote.ID,
+			})
+			if err != nil {
+				return err
+			}
+		}
+
+		// Get all uploaded pics
+		pics := form.File["pics"]
+		if err := s.uploadPicsForVote(pics, vote.ID); err != nil {
+			// roll back vote
+			if err := tx.Rollback(c.Context()); err != nil {
+				return err
+			}
+
+			// end request with error
+			return err
+		}
+
+		// Save vote
+		if err := tx.Commit(c.Context()); err != nil {
+			return err
+		}
+
+		return c.Redirect(fmt.Sprintf("/vote?pin=%d", pincode))
 	})
 
 	app.Post("/google-login", func(c *fiber.Ctx) error {
@@ -442,7 +546,7 @@ func (s *Server) getUserFromGoogleJwtToken(c *fiber.Ctx, token jwt.Token) (*quer
 func (s *Server) getUserFromSession(c *fiber.Ctx) (*queries.User, error) {
 	sess, err := s.sessionStore.Get(c)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get session")
+		return nil, fmt.Errorf("failed to get session: %w", err)
 	}
 
 	jwtToken, ok := sess.Get("logged-in-user").(string)
@@ -473,18 +577,25 @@ func (s *Server) getUserFromSession(c *fiber.Ctx) (*queries.User, error) {
 	return &user, nil
 }
 
-func (s *Server) handleErrors(ctx *fiber.Ctx, err error) error {
+func (s *Server) handleErrors(c *fiber.Ctx, err error) error {
 	// Status code defaults to 500
 	code, msg := fiber.StatusInternalServerError, "Something went wrong!"
 
 	// Retrieve the custom status code if it's a *fiber.Error
-	var e *fiber.Error
-	if errors.As(err, &e) {
-		code = e.Code
-		msg = e.Message
+	var fErr *fiber.Error
+	if errors.As(err, &fErr) {
+		code = fErr.Code
+		msg = fErr.Message
+	} else {
+		s.logger.Errorw("Error caught", "error", err)
 	}
 
-	return ctx.Render("views/error", fiber.Map{"Code": code, "Message": msg})
+	return c.Render("views/error", fiber.Map{"Code": code, "Message": msg})
+}
+
+func (s *Server) uploadPicsForVote([]*multipart.FileHeader, pgtype.UUID) error {
+	s.logger.Warn("uploadPicsForVote hasn't been implemented yet")
+	return nil
 }
 
 func generateLoginJWT(user *queries.User, expiry time.Time) (string, error) {

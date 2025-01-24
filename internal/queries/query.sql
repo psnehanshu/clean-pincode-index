@@ -56,3 +56,9 @@ SELECT * FROM users WHERE id = $1;
 
 -- name: GetVote :one
 SELECT * FROM votes WHERE pincode = $1 AND voter_id = $2;
+
+-- name: CreateVote :one
+INSERT INTO votes (type, pincode, voter_id) VALUES ($1, $2, $3) RETURNING *;
+
+-- name: UpdateExistingVote :exec
+UPDATE votes SET type = $1 WHERE id = $2;
