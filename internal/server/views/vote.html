@@ -1,46 +1,84 @@
 {{if eq .User nil }}
 <script src="https://accounts.google.com/gsi/client" async></script>
 <script>
-  async function onGoogleLogin(response) {
-    try {
-      const body = JSON.stringify(response);
-      const data = await fetch("/google-login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body,
-      }).then((res) => res.json());
-      if (data.error) {
-        alert(data.error);
-      } else {
-        window.location.reload();
-      }
-    } catch (error) {
-      console.error(error);
-    }
+  function google_login_state() {
+    return {
+      pending: false,
+
+      async handleGoogleLogin(ev) {
+        this.pending = true;
+        const response = ev.detail.response;
+
+        try {
+          const body = JSON.stringify(response);
+          const data = await fetch("/google-login", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body,
+          }).then((res) => res.json());
+
+          if (data.error) {
+            alert(data.error);
+          } else {
+            window.location.reload();
+          }
+        } catch (error) {
+          console.error(error);
+        } finally {
+          this.pending = false;
+        }
+      },
+    };
+  }
+
+  function handleGoogleLogin(response) {
+    // Dispatching the response as an event
+    // instead of handling it directly,
+    // so that control can be handed over to
+    // the Alpine component, which has access
+    // to Alpine state
+    window.dispatchEvent(
+      new CustomEvent("googlelogin", {
+        detail: { response },
+        bubbles: true,
+        cancelable: true,
+      })
+    );
   }
 </script>
 
 <div
-  id="g_id_onload"
-  data-client_id="{{.ClientID}}"
-  data-context="signin"
-  data-ux_mode="popup"
-  data-callback="onGoogleLogin"
-  data-auto_prompt="false"
-></div>
+  x-data="google_login_state"
+  @googlelogin.window="handleGoogleLogin"
+  x-cloak
+>
+  <div x-show="pending" class="p-4">
+    <span class="icon"><i class="fa-solid fa-spinner fa-pulse"></i></span>
+    <span>Logging you in...</span>
+  </div>
 
-<div class="" style="max-width: 16rem">
   <div
-    class="g_id_signin"
-    data-type="standard"
-    data-shape="pill"
-    data-theme="filled_blue"
-    data-text="continue_with"
-    data-size="large"
-    data-logo_alignment="left"
+    id="g_id_onload"
+    data-client_id="{{.ClientID}}"
+    data-context="signin"
+    data-ux_mode="popup"
+    data-callback="handleGoogleLogin"
+    data-auto_prompt="false"
   ></div>
+
+  <div x-show="!pending" style="max-width: 16rem">
+    <div
+      class="g_id_signin"
+      data-type="standard"
+      data-shape="pill"
+      data-theme="filled_blue"
+      data-text="continue_with"
+      data-size="large"
+      data-logo_alignment="left"
+    ></div>
+  </div>
 </div>
 {{else}}
 
