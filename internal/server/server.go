@@ -15,9 +15,11 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/session"
+	pgStorage "github.com/gofiber/storage/postgres/v3"
 	"github.com/gofiber/template/html/v2"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/lestrrat-go/jwx/v3/jwa"
 	"github.com/lestrrat-go/jwx/v3/jwk"
 	"github.com/lestrrat-go/jwx/v3/jwt"
@@ -28,7 +30,7 @@ import (
 
 type Server struct {
 	logger       *zap.SugaredLogger
-	db           *pgx.Conn
+	db           *pgxpool.Pool
 	queries      *queries.Queries
 	sessionStore *session.Store
 	close        func() error
@@ -43,25 +45,27 @@ func New(dbConnStr string) (*Server, error) {
 	logger := z.Sugar()
 
 	// Initialize database
-	conn, err := pgx.Connect(context.Background(), dbConnStr)
+	dbPool, err := pgxpool.New(context.Background(), dbConnStr)
 	if err != nil {
 		return nil, err
 	}
 
 	// Initialize queries
-	q := queries.New(conn)
+	q := queries.New(dbPool)
 
 	// Function supposed to be deferred
 	close := func() error {
-		if err := conn.Close(context.Background()); err != nil {
-			logger.Warnw("db connection closure error", "error", err)
-		}
-
+		dbPool.Close()
 		return z.Sync()
 	}
 
+	// Initialize session store with Postgres
+	sessionStore := session.New(session.Config{
+		Storage: pgStorage.New(pgStorage.Config{DB: dbPool, Table: "__session_store"}),
+	})
+
 	// Return instance
-	return &Server{logger, conn, q, session.New(), close}, nil
+	return &Server{logger, dbPool, q, sessionStore, close}, nil
 }
 
 //go:embed views
