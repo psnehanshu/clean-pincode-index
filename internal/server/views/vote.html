@@ -1,19 +1,4 @@
-{{if ne .User nil }}
-<h1>
-  Logged in as {{.User.Name}} ({{.User.Email}})
-  <a href="/logout?return=%2Fvote%3Fpin%3D{{.Pincode}}">Logout</a>
-</h1>
-
-{{if eq .Vote nil }}
-
-<form action="/vote" method="post">
-  <input type="submit" value="upvote" name="vote_type" />
-  <input type="submit" value="downvote" name="vote_type" />
-</form>
-{{end}}
-<!---->
-{{else}}
-
+{{if eq .User nil }}
 <script src="https://accounts.google.com/gsi/client" async></script>
 <script>
   async function onGoogleLogin(response) {
@@ -57,5 +42,21 @@
     data-logo_alignment="left"
   ></div>
 </div>
+{{else}}
 
+<h1>
+  Logged in as {{.User.Name}} ({{.User.Email}})
+  <a href="/logout?return=%2Fvote%3Fpin%3D{{.Pincode}}">Logout</a>
+</h1>
+
+{{if eq .Vote nil }}
+<form action="/vote" method="post" enctype="multipart/form-data">
+  <input type="hidden" name="pincode" value="{{.Pincode}}" />
+  <input type="file" name="pics" accept="image/*" multiple />
+
+  <input type="submit" value="upvote" name="vote_type" />
+  <input type="submit" value="downvote" name="vote_type" />
+</form>
+{{end}}
+<!---->
 {{end}}

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -13,20 +14,54 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/session"
 	"github.com/gofiber/template/html/v2"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/lestrrat-go/jwx/v3/jwa"
 	"github.com/lestrrat-go/jwx/v3/jwk"
 	"github.com/lestrrat-go/jwx/v3/jwt"
+	httperror "github.com/psnehanshu/cleanpincode.in/internal/http-error"
 	"github.com/psnehanshu/cleanpincode.in/internal/queries"
 	"go.uber.org/zap"
 )
 
 type Server struct {
-	Logger  *zap.SugaredLogger
-	DB      *pgx.Conn
-	Queries *queries.Queries
+	logger       *zap.SugaredLogger
+	db           *pgx.Conn
+	queries      *queries.Queries
+	sessionStore *session.Store
+	close        func() error
+}
+
+func New(dbConnStr string) (*Server, error) {
+	// Initialize logger
+	z, err := zap.NewProduction()
+	if err != nil {
+		return nil, err
+	}
+	logger := z.Sugar()
+
+	// Initialize database
+	conn, err := pgx.Connect(context.Background(), dbConnStr)
+	if err != nil {
+		return nil, err
+	}
+
+	// Initialize queries
+	q := queries.New(conn)
+
+	// Function supposed to be deferred
+	close := func() error {
+		if err := conn.Close(context.Background()); err != nil {
+			logger.Warnw("db connection closure error", "error", err)
+		}
+
+		return z.Sync()
+	}
+
+	// Return instance
+	return &Server{logger, conn, q, session.New(), close}, nil
 }
 
 //go:embed views
@@ -56,18 +91,25 @@ func (s *Server) Start(addr string) error {
 	return app.Listen(addr)
 }
 
+func (s *Server) Close() error {
+	if s.close == nil {
+		panic("server.clear shouldn't be nil")
+	}
+	return s.close()
+}
+
 // Mount routes
 func (s *Server) mountRoutes(app *fiber.App) {
 	app.Get("/", func(c *fiber.Ctx) error {
-		mostUpvoted, err := s.Queries.MostUpvoted(c.Context(), queries.MostUpvotedParams{Limit: 5})
+		mostUpvoted, err := s.queries.MostUpvoted(c.Context(), queries.MostUpvotedParams{Limit: 5})
 		if err != nil {
-			s.Logger.Errorw("failed to get most upvoted pincodes", "error", err)
+			s.logger.Errorw("failed to get most upvoted pincodes", "error", err)
 			return c.Status(http.StatusInternalServerError).SendString("failed to get most upvoted pincodes")
 		}
 
-		mostDownvoted, err := s.Queries.MostDownvoted(c.Context(), queries.MostDownvotedParams{Limit: 5})
+		mostDownvoted, err := s.queries.MostDownvoted(c.Context(), queries.MostDownvotedParams{Limit: 5})
 		if err != nil {
-			s.Logger.Errorw("failed to get most upvoted pincodes", "error", err)
+			s.logger.Errorw("failed to get most upvoted pincodes", "error", err)
 			return c.Status(http.StatusInternalServerError).SendString("failed to get most upvoted pincodes")
 		}
 
@@ -83,9 +125,9 @@ func (s *Server) mountRoutes(app *fiber.App) {
 	})
 
 	app.Get("/leaderboard", func(c *fiber.Ctx) error {
-		mostUpvoted, err := s.Queries.MostUpvoted(c.Context(), queries.MostUpvotedParams{Limit: 50})
+		mostUpvoted, err := s.queries.MostUpvoted(c.Context(), queries.MostUpvotedParams{Limit: 50})
 		if err != nil {
-			s.Logger.Errorw("failed to get most upvoted pincodes", "error", err)
+			s.logger.Errorw("failed to get most upvoted pincodes", "error", err)
 			return c.Status(http.StatusInternalServerError).SendString("failed to get most upvoted pincodes")
 		}
 
@@ -93,9 +135,9 @@ func (s *Server) mountRoutes(app *fiber.App) {
 	})
 
 	app.Get("/looserboard", func(c *fiber.Ctx) error {
-		mostDownvoted, err := s.Queries.MostDownvoted(c.Context(), queries.MostDownvotedParams{Limit: 50})
+		mostDownvoted, err := s.queries.MostDownvoted(c.Context(), queries.MostDownvotedParams{Limit: 50})
 		if err != nil {
-			s.Logger.Errorw("failed to get MostDownvoted pincodes", "error", err)
+			s.logger.Errorw("failed to get MostDownvoted pincodes", "error", err)
 			return c.Status(http.StatusInternalServerError).SendString("failed to get MostDownvoted pincodes")
 		}
 
@@ -112,11 +154,11 @@ func (s *Server) mountRoutes(app *fiber.App) {
 		}
 		offset := (page - 1) * limit
 
-		pincodes, err := s.Queries.GetPincodes(c.Context(), queries.GetPincodesParams{
+		pincodes, err := s.queries.GetPincodes(c.Context(), queries.GetPincodesParams{
 			Limit: int32(limit), Offset: int32(offset),
 		})
 		if err != nil {
-			s.Logger.Errorw("failed to get pincodes", "error", err)
+			s.logger.Errorw("failed to get pincodes", "error", err)
 			return c.Status(http.StatusInternalServerError).SendString("failed to get pincodes")
 		}
 
@@ -135,9 +177,9 @@ func (s *Server) mountRoutes(app *fiber.App) {
 			pincode.Valid = true
 		}
 
-		pincodeResult, err := s.Queries.GetByPincode(c.Context(), pincode)
+		pincodeResult, err := s.queries.GetByPincode(c.Context(), pincode)
 		if err != nil {
-			s.Logger.Errorw("failed to get pincode", "error", err)
+			s.logger.Errorw("failed to get pincode", "error", err)
 			return c.Status(http.StatusInternalServerError).SendString("failed to get pincode")
 		}
 
@@ -157,12 +199,12 @@ func (s *Server) mountRoutes(app *fiber.App) {
 		}
 
 		// Calculate votes
-		votes, err := s.Queries.GetPincodeVotes(c.Context(), pincode.Int32)
+		votes, err := s.queries.GetPincodeVotes(c.Context(), pincode.Int32)
 		if err != nil {
 			if err == pgx.ErrNoRows {
 				votes.Pincode = pincode.Int32
 			} else {
-				s.Logger.Errorw("failed to get pincode votes", "error", err)
+				s.logger.Errorw("failed to get pincode votes", "error", err)
 				return c.Status(http.StatusInternalServerError).SendString("failed to get pincode votes")
 			}
 		}
@@ -178,9 +220,9 @@ func (s *Server) mountRoutes(app *fiber.App) {
 
 	app.Get("/vote", func(c *fiber.Ctx) error {
 		pincode := c.QueryInt("pin")
-		pincodeResult, err := s.Queries.GetByPincode(c.Context(), pgtype.Int4{Int32: int32(pincode), Valid: true})
+		pincodeResult, err := s.queries.GetByPincode(c.Context(), pgtype.Int4{Int32: int32(pincode), Valid: true})
 		if err != nil {
-			s.Logger.Errorw("failed to get pincode", "error", err)
+			s.logger.Errorw("failed to get pincode", "error", err)
 			return c.Status(http.StatusInternalServerError).SendString("failed to get pincode")
 		}
 
@@ -189,22 +231,12 @@ func (s *Server) mountRoutes(app *fiber.App) {
 		}
 
 		// Check logged in status
-		var user *queries.User
-		loggedInUserId, err := getUserIdFromLoginJWT(c.Cookies("logged-in-user"))
-		if err == nil {
-			var uuid pgtype.UUID
-			if err := uuid.Scan(loggedInUserId); err != nil {
-				s.Logger.Warn("failed to parse logged-in-user cookie", err)
+		user, err := s.getUserFromSession(c)
+		if err != nil {
+			if httpErr, ok := err.(httperror.HTTPError); ok {
+				return c.Status(httpErr.Code()).SendString(httpErr.Message())
 			} else {
-				u, err := s.Queries.GetUserByID(c.Context(), uuid)
-				if err != nil {
-					if err != pgx.ErrNoRows {
-						s.Logger.Errorw("failed to get user by id", "error", err)
-						return c.Status(http.StatusInternalServerError).SendString("failed to get user")
-					}
-				} else {
-					user = &u
-				}
+				s.logger.Warnw("failed to get user from session", "error", err)
 			}
 		}
 
@@ -212,12 +244,12 @@ func (s *Server) mountRoutes(app *fiber.App) {
 		var vote *queries.Vote
 		if user != nil {
 			// fetch existing vote
-			v, err := s.Queries.GetVote(c.Context(), queries.GetVoteParams{
+			v, err := s.queries.GetVote(c.Context(), queries.GetVoteParams{
 				Pincode: int32(pincode), VoterID: user.ID,
 			})
 			if err != nil {
 				if err != pgx.ErrNoRows {
-					s.Logger.Errorw("failed to get vote", "error", err)
+					s.logger.Errorw("failed to get vote", "error", err)
 					return c.Status(http.StatusInternalServerError).SendString("failed to get vote")
 				}
 			} else {
@@ -234,6 +266,10 @@ func (s *Server) mountRoutes(app *fiber.App) {
 		})
 	})
 
+	app.Post("/vote", func(c *fiber.Ctx) error {
+		return nil
+	})
+
 	app.Post("/google-login", func(c *fiber.Ctx) error {
 		// Extract credential from body
 		var data map[string]interface{}
@@ -247,7 +283,7 @@ func (s *Server) mountRoutes(app *fiber.App) {
 
 		set, err := jwk.Fetch(c.Context(), "https://www.googleapis.com/oauth2/v3/certs")
 		if err != nil {
-			s.Logger.Errorw("failed to fetch jwk", "error", err)
+			s.logger.Errorw("failed to fetch jwk", "error", err)
 			return c.SendStatus(http.StatusInternalServerError)
 		}
 
@@ -260,55 +296,11 @@ func (s *Server) mountRoutes(app *fiber.App) {
 			jwt.WithIssuer("https://accounts.google.com"),
 		)
 		if err != nil {
-			s.Logger.Errorw("failed to parse token", "error", err)
+			s.logger.Errorw("failed to parse token", "error", err)
 			return c.SendStatus(http.StatusUnauthorized)
 		}
 
-		getUser := func() (*queries.User, error) {
-			var email, name, pic string
-			id, ok := token.Subject()
-			if !ok {
-				s.Logger.Errorw("failed to parse sub")
-				return nil, c.SendStatus(http.StatusBadRequest)
-			}
-			if err := token.Get("email", &email); err != nil {
-				s.Logger.Errorw("failed to parse email", "error", err)
-				return nil, c.SendStatus(http.StatusBadRequest)
-			}
-			if err := token.Get("name", &name); err != nil {
-				s.Logger.Errorw("failed to parse name", "error", err)
-				return nil, c.SendStatus(http.StatusBadRequest)
-			}
-			if err := token.Get("picture", &pic); err != nil {
-				s.Logger.Errorw("failed to parse picture", "error", err)
-				return nil, c.SendStatus(http.StatusBadRequest)
-			}
-
-			// Find user
-			user, err := s.Queries.GetUserByGoogleID(c.Context(), pgtype.Text{String: id, Valid: true})
-			if err != nil {
-				if err != pgx.ErrNoRows {
-					s.Logger.Errorw("failed to get user", "error", err)
-					return nil, c.SendStatus(http.StatusInternalServerError)
-				}
-			} else {
-				return &user, nil
-			}
-
-			// Create User
-			user, err = s.Queries.CreateUser(c.Context(), queries.CreateUserParams{
-				Name: name, Email: email, Pic: pgtype.Text{String: pic, Valid: true}, GoogleID: pgtype.Text{String: id, Valid: true},
-			})
-
-			if err != nil {
-				s.Logger.Errorw("failed to create user", "error", err)
-				return nil, c.SendStatus(http.StatusInternalServerError)
-			}
-
-			return &user, nil
-		}
-
-		user, err := getUser()
+		user, err := s.getUserFromGoogleJwtToken(c, token)
 		if user == nil {
 			return nil
 		}
@@ -317,20 +309,27 @@ func (s *Server) mountRoutes(app *fiber.App) {
 		}
 
 		// Set session
-		expiresAt := time.Now().Add(24 * time.Hour * 365)
-		loginToken, err := generateLoginJWT(user, expiresAt)
+		sess, err := s.sessionStore.Get(c)
 		if err != nil {
-			s.Logger.Errorw("failed to generate login token", "error", err)
+			s.logger.Errorw("failed to get session", "error", err)
 			return c.SendStatus(http.StatusInternalServerError)
 		}
 
-		c.Cookie(&fiber.Cookie{
-			Name:     "logged-in-user",
-			Value:    loginToken,
-			Expires:  expiresAt,
-			HTTPOnly: true,
-			SameSite: "Strict",
-		})
+		expiryDuration := time.Hour * 24 * 365
+		expiresAt := time.Now().Add(expiryDuration)
+		loginToken, err := generateLoginJWT(user, expiresAt)
+		if err != nil {
+			s.logger.Errorw("failed to generate login token", "error", err)
+			return c.SendStatus(http.StatusInternalServerError)
+		}
+
+		sess.Set("logged-in-user", loginToken)
+		sess.SetExpiry(expiryDuration)
+
+		if err := sess.Save(); err != nil {
+			s.logger.Errorw("failed to save session", "error", err)
+			return c.SendStatus(http.StatusInternalServerError)
+		}
 
 		return c.JSON(fiber.Map{"user": user})
 	})
@@ -343,9 +342,9 @@ func (s *Server) mountRoutes(app *fiber.App) {
 	})
 
 	app.Get("/state", func(c *fiber.Ctx) error {
-		states, err := s.Queries.GetStates(c.Context())
+		states, err := s.queries.GetStates(c.Context())
 		if err != nil {
-			s.Logger.Errorw("failed to get states", "error", err)
+			s.logger.Errorw("failed to get states", "error", err)
 			return c.Status(http.StatusInternalServerError).SendString("failed to get states")
 		}
 
@@ -358,9 +357,9 @@ func (s *Server) mountRoutes(app *fiber.App) {
 			return c.SendStatus(http.StatusBadRequest)
 		}
 
-		districts, err := s.Queries.GetDistricts(c.Context(), pgtype.Text{String: state, Valid: true})
+		districts, err := s.queries.GetDistricts(c.Context(), pgtype.Text{String: state, Valid: true})
 		if err != nil {
-			s.Logger.Errorw("failed to get districts", "error", err)
+			s.logger.Errorw("failed to get districts", "error", err)
 			return c.Status(http.StatusInternalServerError).SendString("failed to get districts")
 		}
 
@@ -377,12 +376,12 @@ func (s *Server) mountRoutes(app *fiber.App) {
 			return c.SendStatus(http.StatusBadRequest)
 		}
 
-		pincodes, err := s.Queries.GetPincodeByDistrict(c.Context(), queries.GetPincodeByDistrictParams{
+		pincodes, err := s.queries.GetPincodeByDistrict(c.Context(), queries.GetPincodeByDistrictParams{
 			District:  pgtype.Text{String: district, Valid: true},
 			Statename: pgtype.Text{String: state, Valid: true},
 		})
 		if err != nil {
-			s.Logger.Errorw("failed to get pincodes", "error", err)
+			s.logger.Errorw("failed to get pincodes", "error", err)
 			return c.Status(http.StatusInternalServerError).SendString("failed to get pincodes")
 		}
 
@@ -392,6 +391,84 @@ func (s *Server) mountRoutes(app *fiber.App) {
 			"Pincodes": pincodes,
 		})
 	})
+}
+
+func (s *Server) getUserFromGoogleJwtToken(c *fiber.Ctx, token jwt.Token) (*queries.User, error) {
+	var email, name, pic string
+	id, ok := token.Subject()
+	if !ok {
+		s.logger.Errorw("failed to parse sub")
+		return nil, c.SendStatus(http.StatusBadRequest)
+	}
+	if err := token.Get("email", &email); err != nil {
+		s.logger.Errorw("failed to parse email", "error", err)
+		return nil, c.SendStatus(http.StatusBadRequest)
+	}
+	if err := token.Get("name", &name); err != nil {
+		s.logger.Errorw("failed to parse name", "error", err)
+		return nil, c.SendStatus(http.StatusBadRequest)
+	}
+	if err := token.Get("picture", &pic); err != nil {
+		s.logger.Errorw("failed to parse picture", "error", err)
+		return nil, c.SendStatus(http.StatusBadRequest)
+	}
+
+	// Find user
+	user, err := s.queries.GetUserByGoogleID(c.Context(), pgtype.Text{String: id, Valid: true})
+	if err != nil {
+		if err != pgx.ErrNoRows {
+			s.logger.Errorw("failed to get user", "error", err)
+			return nil, c.SendStatus(http.StatusInternalServerError)
+		}
+	} else {
+		return &user, nil
+	}
+
+	// Create User
+	user, err = s.queries.CreateUser(c.Context(), queries.CreateUserParams{
+		Name: name, Email: email, Pic: pgtype.Text{String: pic, Valid: true}, GoogleID: pgtype.Text{String: id, Valid: true},
+	})
+
+	if err != nil {
+		s.logger.Errorw("failed to create user", "error", err)
+		return nil, c.SendStatus(http.StatusInternalServerError)
+	}
+
+	return &user, nil
+}
+
+func (s *Server) getUserFromSession(c *fiber.Ctx) (*queries.User, error) {
+	sess, err := s.sessionStore.Get(c)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get session")
+	}
+
+	jwtToken, ok := sess.Get("logged-in-user").(string)
+	if !ok {
+		return nil, fmt.Errorf("logged-in-user cookie not found")
+	}
+
+	loggedInUserId, err := getUserIdFromLoginJWT(jwtToken)
+	if err != nil {
+		return nil, err
+	}
+
+	var uuid pgtype.UUID
+	if err := uuid.Scan(loggedInUserId); err != nil {
+		return nil, err
+	}
+
+	user, err := s.queries.GetUserByID(c.Context(), uuid)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, fmt.Errorf("user not found")
+		}
+
+		s.logger.Errorw("failed to get user by id", "error", err)
+		return nil, httperror.New("failed to get user", http.StatusInternalServerError)
+	}
+
+	return &user, nil
 }
 
 func generateLoginJWT(user *queries.User, expiry time.Time) (string, error) {
