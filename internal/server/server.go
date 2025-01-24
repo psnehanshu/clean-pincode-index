@@ -339,7 +339,16 @@ func (s *Server) mountRoutes(app *fiber.App) {
 	})
 
 	app.Get("/logout", func(c *fiber.Ctx) error {
-		c.ClearCookie("logged-in-user")
+		sess, err := s.sessionStore.Get(c)
+		if err != nil {
+			s.logger.Errorw("failed to get session", "error", err)
+			return c.SendStatus(http.StatusInternalServerError)
+		}
+
+		if err := sess.Destroy(); err != nil {
+			s.logger.Errorw("failed to destroy session", "error", err)
+			return c.SendStatus(http.StatusInternalServerError)
+		}
 
 		redirect := c.Query("return", "/")
 		return c.Redirect(redirect)
