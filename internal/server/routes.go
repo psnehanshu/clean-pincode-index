@@ -204,7 +204,7 @@ func (s *Server) mountRoutes(app *fiber.App) {
 		}
 
 		// Show success?
-		shouldShowSuccess := strings.ToLower(c.Query("show_success", "false")) == "true"
+		shouldShowSuccess := c.QueryBool("show_success")
 
 		return c.Render("views/vote", fiber.Map{
 			"Pincode":     pincode,
@@ -221,6 +221,9 @@ func (s *Server) mountRoutes(app *fiber.App) {
 		if user == nil {
 			return fiber.NewError(http.StatusUnauthorized)
 		}
+
+		// check if ajax
+		isAjax := c.QueryBool("ajax")
 
 		// Parse the multipart form
 		form, err := c.MultipartForm()
@@ -319,7 +322,13 @@ func (s *Server) mountRoutes(app *fiber.App) {
 			return err
 		}
 
-		return c.Redirect(fmt.Sprintf("/vote?pin=%d&show_success=true", pincode))
+		redirectTo := fmt.Sprintf("/vote?pin=%d&show_success=true", pincode)
+
+		if isAjax {
+			return c.JSON(fiber.Map{"vote_id": vote.ID, "redirect": redirectTo})
+		}
+
+		return c.Redirect(redirectTo)
 	})
 
 	app.Post("/google-login", func(c *fiber.Ctx) error {

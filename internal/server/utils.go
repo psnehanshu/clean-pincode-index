@@ -111,8 +111,8 @@ func (s *Server) handleErrors(c *fiber.Ctx, err error) error {
 	return c.Render("views/error", fiber.Map{"Code": code, "Message": msg})
 }
 
-func (s *Server) uploadPicsForVote([]*multipart.FileHeader, pgtype.UUID) error {
-	s.logger.Warn("uploadPicsForVote hasn't been implemented yet")
+func (s *Server) uploadPicsForVote(pics []*multipart.FileHeader, _ pgtype.UUID) error {
+	s.logger.Warnw("uploadPicsForVote hasn't been implemented yet", "count", len(pics))
 	return nil
 }
 

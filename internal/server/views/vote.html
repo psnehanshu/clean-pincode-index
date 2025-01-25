@@ -1,41 +1,216 @@
 <h1 class="is-size-4 mb-4">Cast your vote for {{.Pincode}}, {{.State}}</h1>
 
-{{if eq .User nil }}
-
-<div>You must login to vote</div>
-<a href="/login?return=%2Fvote%3Fpin%3D{{.Pincode}}">Login</a>
-
-{{else}}
-<!---->
-{{if eq .Vote nil }}
-<form action="/vote" method="post" enctype="multipart/form-data">
-  <input type="hidden" name="pincode" value="{{.Pincode}}" />
-  <input type="file" name="pics" accept="image/*" multiple />
-
-  <input type="submit" value="upvote" name="vote_type" />
-  <input type="submit" value="downvote" name="vote_type" />
-</form>
-{{else}}
-
-<!---->
-{{if .showSuccess}}
-<div class="notification is-success is-light">
-  <span class="icon"><i class="fa-solid fa-circle-check"></i></span>
-  <span>Thanks for voting! Your vote has been recorded.</span>
-</div>
-{{end}}
-
-<div class="notification is-info is-light">
-  <span class="icon"><i class="fa-regular fa-circle-question"></i></span>
-  <span>
-    You have already voted for this pincode. You can either
-    <a href="/update-vote?id={{.Vote.ID.String}}">change</a> your vote or
-    <a href="/delete-vote?id={{.Vote.ID.String}}">delete</a>
-    it.
-  </span>
+<div class="content">
+  <h2 class="is-size-6">Make your vote count!</h2>
+  <p>
+    Your vote helps shine a light on the state of cleanliness in your area. By
+    participating, you’re contributing to a powerful movement that ranks
+    localities across India based on their cleanliness—or lack of it.
+  </p>
+  <p>Here's how it works:</p>
+  <ol>
+    <li>
+      Select one of the two options: “My place is clean” or “My place is dirty.”
+    </li>
+    <li>
+      Attach photos to show the reality of your area. A picture speaks louder
+      than words!
+    </li>
+    <li>
+      Write a comment to share your thoughts or provide additional details.
+    </li>
+    <li>
+      Submit your vote to update your pincode’s cleanliness score in real time.
+    </li>
+  </ol>
+  <p>
+    See where your pincode stands on the
+    <a href="/leaderboard">leaderboard</a> or
+    <a href="/looserboard">looserboard</a> and help bring attention to the
+    issues that matter. Together, we can hold leaders accountable and push for a
+    cleaner, better community!
+  </p>
 </div>
 
-<!---->
-{{end}}
-<!---->
-{{end}}
+<div class="card my-4">
+  <div class="card-content">
+    {{if eq .User nil }}
+
+    <div>You must login to vote</div>
+    <a href="/login?return=%2Fvote%3Fpin%3D{{.Pincode}}">Login</a>
+
+    {{else}}
+    <!---->
+    {{if eq .Vote nil }}
+
+    <script>
+      function voteForm() {
+        // Map for caching Object URL for a file
+        const pic2url = new Map();
+
+        return {
+          error: "",
+          submitting: false,
+          // List of pics
+          pics: [],
+          // Object URLs for the pics
+          get picUrls() {
+            return this.pics.map((file) => {
+              if (pic2url.has(file)) {
+                return pic2url.get(file);
+              }
+              const url = URL.createObjectURL(file);
+              pic2url.set(file, url);
+              return url;
+            });
+          },
+          // Handler for file uploader
+          handlePicAdd(event) {
+            Array.from(event.target.files).forEach((file) => {
+              this.pics.push(file);
+            });
+            event.target.value = "";
+          },
+          // Inject the accumulated pics in the form
+          async handleSubmit(event) {
+            try {
+              this.submitting = true;
+              const form = event.target;
+              event.preventDefault();
+              const formData = new FormData(form);
+              this.pics.forEach((p) => formData.append("pics", p));
+
+              const response = await fetch("/vote?ajax=true", {
+                method: "post",
+                body: formData,
+              });
+
+              if (!response.ok) {
+                throw new Error("Something went wrong!");
+              }
+
+              const data = await response.json();
+
+              if (data.redirect) {
+                window.location = data.redirect;
+              } else {
+                window.location.reload();
+              }
+            } catch (error) {
+              this.error = error.message;
+            } finally {
+              this.submitting = false;
+            }
+          },
+        };
+      }
+    </script>
+
+    <div x-data="voteForm">
+      <form
+        action="/vote"
+        method="post"
+        enctype="multipart/form-data"
+        id="vote-form"
+        @submit="handleSubmit"
+      >
+        <input type="hidden" name="pincode" value="{{.Pincode}}" />
+
+        <div class="field">
+          <div class="control">
+            <div class="buttons">
+              <label class="radio button">
+                <input type="radio" name="vote_type" value="upvote" />
+                <span>My place is clean</span>
+                <span class="icon">
+                  <i class="fa-regular fa-thumbs-up"></i>
+                </span>
+              </label>
+              <label class="radio button">
+                <input type="radio" name="vote_type" value="downvote" />
+                <span>My place is dirty</span>
+                <span class="icon">
+                  <i class="fa-regular fa-thumbs-down"></i>
+                </span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="field">
+          <textarea
+            class="textarea"
+            placeholder="Write a comment to share your thoughts or provide additional details"
+          ></textarea>
+        </div>
+
+        <div class="file is-boxed">
+          <label class="file-label">
+            <input
+              @change="handlePicAdd"
+              class="file-input"
+              type="file"
+              name="pics"
+              accept="image/*"
+              id="pics-uploader"
+              multiple
+            />
+            <span class="file-cta">
+              <span class="file-icon">
+                <i class="fas fa-camera"></i>
+              </span>
+              <span class="file-label">Upload photos</span>
+            </span>
+          </label>
+        </div>
+
+        <div class="grid">
+          <template x-for="url in picUrls">
+            <div class="cell">
+              <img :src="url" class="m-auto" style="height: 100px" />
+            </div>
+          </template>
+        </div>
+
+        <div class="field is-grouped">
+          <div class="control">
+            <button class="button is-primary" type="submit">Submit</button>
+          </div>
+          <div class="control">
+            <button type="reset" class="button">Reset</button>
+          </div>
+        </div>
+
+        <div x-show="submitting" class="p-4">
+          <span class="icon"><i class="fa-solid fa-spinner fa-pulse"></i></span>
+          <span>Submitting your vote...</span>
+        </div>
+      </form>
+    </div>
+
+    {{else}}
+
+    <!---->
+    {{if .showSuccess}}
+    <div class="notification is-success is-light">
+      <span class="icon"><i class="fa-solid fa-circle-check"></i></span>
+      <span>Thanks for voting! Your vote has been recorded.</span>
+    </div>
+    {{end}}
+
+    <div class="notification is-info is-light">
+      <span class="icon"><i class="fa-regular fa-circle-question"></i></span>
+      <span>
+        You have already voted for this pincode. You can either
+        <a href="/update-vote?id={{.Vote.ID.String}}">change</a> your vote or
+        <a href="/delete-vote?id={{.Vote.ID.String}}">delete</a>
+        it.
+      </span>
+    </div>
+
+    <!---->
+    {{end}}
+    <!---->
+    {{end}}
+  </div>
+</div>

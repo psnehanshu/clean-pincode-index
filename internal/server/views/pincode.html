@@ -1,27 +1,64 @@
-<h1>Pincode {{.Pincode.Int32}}, {{.State}}</h1>
+<h1 class="is-size-4 mb-4">Pincode {{.Pincode.Int32}}, {{.State}}</h1>
 
-<table>
-  <tr>
-    <th>Total</th>
-    <td>{{.TotalVotes}}</td>
-  </tr>
-  <tr>
-    <th>Up-votes</th>
-    <td>{{.Votes.Upvotes}}</td>
-  </tr>
-  <tr>
-    <th>Down-votes</th>
-    <td>{{.Votes.Downvotes}}</td>
-  </tr>
-</table>
+<div class="columns">
+  <div class="column is-two-thirds content">
+    <p>
+      Are you frustrated with the cleanliness of the areas within pincode
+      {{.Pincode.Int32}} in {{.State}}? Want to make your voice heard and hold
+      your local leaders accountable? Now’s your chance! Cast your vote and let
+      the internet know. Every vote contributes to a cleanliness score for the
+      pincode, helping create a live leaderboard that ranks the
+      <a href="/leaderboard">cleanest</a> and
+      <a href="/looserboard">dirtiest</a> areas across India. Let’s spotlight
+      the issues and push for change—your vote matters!
+    </p>
 
-<a href="/vote?pin={{.Pincode.Int32}}" class="button is-primary"
-  >Cast your vote</a
->
+    <a
+      href="/vote?pin={{.Pincode.Int32}}"
+      class="button is-info is-large is-fullwidth my-6"
+    >
+      Cast your vote
+    </a>
+  </div>
 
-<h2>Offices</h2>
+  <div class="column is-one-third">
+    <h2 class="is-size-5 has-text-centered">Scoreboard</h2>
+
+    <table class="table is-striped is-hoverable is-fullwidth">
+      <tr>
+        <th>
+          <span class="icon">
+            <i class="fa-regular fa-star-half-stroke"></i>
+          </span>
+          Total score
+        </th>
+        <td>{{.TotalVotes}}</td>
+      </tr>
+      <tr>
+        <th>
+          <span class="icon">
+            <i class="fa-regular fa-thumbs-up"></i>
+          </span>
+          Upvotes
+        </th>
+        <td>{{.Votes.Upvotes}}</td>
+      </tr>
+      <tr>
+        <th>
+          <span class="icon">
+            <i class="fa-regular fa-thumbs-down"></i>
+          </span>
+          Downvotes
+        </th>
+        <td>{{.Votes.Downvotes}}</td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<!-- <h2>Offices</h2>
 <ul>
   {{range .PostOffices}}
   <li>{{.Officename.String}}</li>
   {{end}}
-</ul>
+</ul> -->
