@@ -1,17 +1,34 @@
-<figure class="image is-64x64">
-  <img class="is-rounded" src="{{.User.Pic.String}}" />
-</figure>
-<h1 class="is-size-3">{{.User.Name}}</h1>
+<div class="card">
+  <div class="card-content">
+    <div class="media">
+      <div class="media-left">
+        <figure class="image is-64x64">
+          <img class="is-rounded" src="{{.User.Pic.String}}" />
+        </figure>
+      </div>
+      <div class="media-content">
+        <p class="title is-4">
+          {{.User.Name}}
+          <!---->
+          {{if .IsCurrentUser}} (You) {{end}}
+        </p>
+        <p class="subtitle is-6 mt-1">
+          joined <strong>{{.MemberDuration}}</strong> ago
+        </p>
+      </div>
+    </div>
+  </div>
 
-{{if .IsCurrentUser}}
-<div class="my-4">
-  <form action="/logout" method="post">
-    <button type="submit" class="button">
-      <span class="icon">
-        <i class="fa-solid fa-right-from-bracket"></i>
-      </span>
-      <span>Logout</span>
-    </button>
-  </form>
+  {{if .IsCurrentUser}}
+  <div class="card-footer">
+    <form action="/logout" method="post" class="card-footer-item">
+      <button type="submit" class="button">
+        <span class="icon">
+          <i class="fa-solid fa-right-from-bracket"></i>
+        </span>
+        <span>Logout</span>
+      </button>
+    </form>
+  </div>
+  {{end}}
 </div>
-{{end}}

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/hako/durafmt"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/lestrrat-go/jwx/v3/jwk"
@@ -74,8 +75,11 @@ func (s *Server) mountRoutes(app *fiber.App) {
 			return err
 		}
 
+		memberDuration := time.Since(user.CreatedAt.Time)
+
 		return c.Render("views/user", fiber.Map{
 			"IsCurrentUser": isCurrentUser, "User": user,
+			"MemberDuration": durafmt.Parse(memberDuration).LimitFirstN(2).String(),
 		})
 	})
 
