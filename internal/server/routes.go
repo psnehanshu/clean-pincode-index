@@ -278,6 +278,14 @@ func (s *Server) mountRoutes(app *fiber.App) {
 			}
 		}
 
+		comment := pgtype.Text{String: "", Valid: true}
+		{
+			c := form.Value["comment"]
+			if len(c) > 0 {
+				comment.String = c[0]
+			}
+		}
+
 		// Record vote (with transaction)
 		tx, err := s.db.Begin(c.Context())
 		if err != nil {
@@ -289,6 +297,7 @@ func (s *Server) mountRoutes(app *fiber.App) {
 			// new vote
 			v, err := qtx.CreateVote(c.Context(), queries.CreateVoteParams{
 				Type: voteType, Pincode: int32(pincode), VoterID: user.ID,
+				Comment: comment,
 			})
 			if err != nil {
 				return err
@@ -298,7 +307,7 @@ func (s *Server) mountRoutes(app *fiber.App) {
 		} else {
 			// update existing vote
 			err := qtx.UpdateExistingVote(c.Context(), queries.UpdateExistingVoteParams{
-				Type: voteType, ID: vote.ID,
+				Type: voteType, ID: vote.ID, Comment: comment,
 			})
 			if err != nil {
 				return err

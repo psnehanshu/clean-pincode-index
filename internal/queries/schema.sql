@@ -29,6 +29,7 @@ CREATE TABLE votes (
     type vote_type NOT NULL,
     pincode INTEGER NOT NULL,
     voter_id UUID NOT NULL,
+    comment TEXT NULL,
     created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
