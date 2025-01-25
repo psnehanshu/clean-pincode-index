@@ -1,6 +1,6 @@
 <h1 class="is-size-1 mb-4">{{.Title}}</h1>
-
-<table class="table">
+{{$icon := .PrizeIcon}}
+<table class="table is-hoverable is-striped is-fullwidth">
   <thead>
     <tr>
       <th>Rank</th>
@@ -12,7 +12,15 @@
     {{ range $index, $e := .Board}}
     <tr>
       <td>{{inc $index}}</td>
-      <td><a href="/pincode/{{$e.Pincode}}">{{$e.Pincode}}</a></td>
+      <td>
+        <a href="/pincode/{{$e.Pincode}}">{{$e.Pincode}}</a>
+
+        {{if rank_top_3 $index}}
+        <span class="icon">
+          <i class="fa-solid {{$icon}}"></i>
+        </span>
+        {{end}}
+      </td>
       <td>{{$e.Total}}</td>
     </tr>
     {{end}}

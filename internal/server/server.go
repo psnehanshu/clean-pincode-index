@@ -67,6 +67,9 @@ func (s *Server) Start(addr string) error {
 		"inc": func(i int) int {
 			return i + 1
 		},
+		"rank_top_3": func(rank int) bool {
+			return rank >= 0 && rank <= 2
+		},
 	})
 
 	app := fiber.New(fiber.Config{

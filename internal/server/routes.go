@@ -93,7 +93,9 @@ func (s *Server) mountRoutes(app *fiber.App) {
 			return fiber.NewError(http.StatusInternalServerError, "failed to get most upvoted pincodes")
 		}
 
-		return c.Render("views/board", fiber.Map{"Board": mostUpvoted, "Title": "Leaderboard"})
+		return c.Render("views/board", fiber.Map{
+			"Board": mostUpvoted, "Title": "Leaderboard", "PrizeIcon": "fa-medal",
+		})
 	})
 
 	app.Get("/looserboard", func(c *fiber.Ctx) error {
@@ -102,7 +104,9 @@ func (s *Server) mountRoutes(app *fiber.App) {
 			return fiber.NewError(http.StatusInternalServerError, "failed to get MostDownvoted pincodes")
 		}
 
-		return c.Render("views/board", fiber.Map{"Board": mostDownvoted, "Title": "Looserboard"})
+		return c.Render("views/board", fiber.Map{
+			"Board": mostDownvoted, "Title": "Looserboard", "PrizeIcon": "fa-skull",
+		})
 	})
 
 	app.Get("/pincode", func(c *fiber.Ctx) error {
