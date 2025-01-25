@@ -34,6 +34,51 @@ func (s *Server) mountRoutes(app *fiber.App) {
 		return c.Render("views/index", fiber.Map{"MostUpvoted": mostUpvoted, "MostDownvoted": mostDownvoted})
 	})
 
+	app.Get("/me", func(c *fiber.Ctx) error {
+		user := s.getRequestUser(c)
+		if user != nil {
+			return c.Redirect(fmt.Sprintf("/user/%s", user.ID.String()))
+		}
+		return c.Redirect("/login?return=%2Fme")
+	})
+
+	app.Get("/login", func(c *fiber.Ctx) error {
+		user := s.getRequestUser(c)
+		if user != nil {
+			return c.Redirect("/")
+		}
+
+		return c.Render("views/login", fiber.Map{"ClientID": os.Getenv("GOOGLE_CLIENT_ID")})
+	})
+
+	app.Get("/user/:id", func(c *fiber.Ctx) error {
+		var userUUID pgtype.UUID
+		{
+			userIdStr := c.Params("id")
+			if userIdStr == "" {
+				return fiber.NewError(http.StatusNotFound)
+			}
+			if err := userUUID.Scan(userIdStr); err != nil {
+				return err
+			}
+		}
+
+		currentUser := s.getRequestUser(c)
+		var isCurrentUser bool
+		if currentUser != nil {
+			isCurrentUser = currentUser.ID == userUUID
+		}
+
+		user, err := s.queries.GetUserByID(c.Context(), userUUID)
+		if err != nil {
+			return err
+		}
+
+		return c.Render("views/user", fiber.Map{
+			"IsCurrentUser": isCurrentUser, "User": user,
+		})
+	})
+
 	app.Get("/about", func(c *fiber.Ctx) error {
 		return c.Render("views/about", nil)
 	})
@@ -151,12 +196,11 @@ func (s *Server) mountRoutes(app *fiber.App) {
 		}
 
 		return c.Render("views/vote", fiber.Map{
-			"Pincode":  pincode,
-			"Info":     pincodeResult,
-			"ClientID": os.Getenv("GOOGLE_CLIENT_ID"),
-			"User":     user,
-			"Vote":     vote,
-			"State":    strings.Join(s.getStatesForPincodes(pincodeResult), "/"),
+			"Pincode": pincode,
+			"Info":    pincodeResult,
+			"User":    user,
+			"Vote":    vote,
+			"State":   strings.Join(s.getStatesForPincodes(pincodeResult), "/"),
 		})
 	})
 
@@ -330,7 +374,7 @@ func (s *Server) mountRoutes(app *fiber.App) {
 		return c.JSON(fiber.Map{"user": user})
 	})
 
-	app.Get("/logout", func(c *fiber.Ctx) error {
+	app.Post("/logout", func(c *fiber.Ctx) error {
 		sess, err := s.sessionStore.Get(c)
 		if err != nil {
 			s.logger.Errorw("failed to get session", "error", err)

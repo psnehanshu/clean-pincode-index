@@ -22,10 +22,24 @@
         display: none !important;
       }
     </style>
+
+    <script type="application/json" id="userJson">
+      {{.user}}
+    </script>
+    <script>
+      window.user = JSON.parse(document.getElementById("userJson").innerText);
+    </script>
   </head>
 
   <body class="container">
-    <header>
+    <script>
+      function headerComp() {
+        return {
+          user: window.user,
+        };
+      }
+    </script>
+    <header x-data="headerComp">
       <nav class="navbar" role="navigation" aria-label="main navigation">
         <div class="navbar-brand">
           <a href="/" class="navbar-item">
@@ -37,6 +51,19 @@
           <a href="/state" class="navbar-item">States</a>
           <a href="/about" class="navbar-item">About</a>
           <a href="/contact" class="navbar-item">Contact</a>
+
+          <template x-if="user">
+            <div class="navbar-item">
+              <a href="/me">
+                <figure class="image">
+                  <img class="is-rounded" :src="user.Pic" />
+                </figure>
+              </a>
+            </div>
+          </template>
+          <template x-if="!user">
+            <a href="/login" class="navbar-item">Login</a>
+          </template>
         </div>
       </nav>
     </header>

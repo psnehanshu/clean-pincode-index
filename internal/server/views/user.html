@@ -1,0 +1,17 @@
+<figure class="image is-64x64">
+  <img class="is-rounded" src="{{.User.Pic.String}}" />
+</figure>
+<h1 class="is-size-3">{{.User.Name}}</h1>
+
+{{if .IsCurrentUser}}
+<div class="my-4">
+  <form action="/logout" method="post">
+    <button type="submit" class="button">
+      <span class="icon">
+        <i class="fa-solid fa-right-from-bracket"></i>
+      </span>
+      <span>Logout</span>
+    </button>
+  </form>
+</div>
+{{end}}
