@@ -1,4 +1,4 @@
-<h1 class="is-size-2">Cast your vote for {{.Pincode}}, {{.State}}</h1>
+<h1 class="is-size-2 mb-4">Cast your vote for {{.Pincode}}, {{.State}}</h1>
 
 {{if eq .User nil }}
 
@@ -16,12 +16,26 @@
   <input type="submit" value="downvote" name="vote_type" />
 </form>
 {{else}}
-<div class="notification is-info">
-  You have already voted for this pincode. You can either
-  <a href="/update-vote?id={{.Vote.ID.String}}">update</a> your vote or
-  <a href="/delete-vote?id={{.Vote.ID.String}}">delete</a>
-  it.
+
+<!---->
+{{if .showSuccess}}
+<div class="notification is-success is-light">
+  <span class="icon"><i class="fa-solid fa-circle-check"></i></span>
+  <span>Thanks for voting! Your vote has been recorded.</span>
 </div>
+{{end}}
+
+<div class="notification is-info is-light">
+  <span class="icon"><i class="fa-regular fa-circle-question"></i></span>
+  <span>
+    You have already voted for this pincode. You can either
+    <a href="/update-vote?id={{.Vote.ID.String}}">change</a> your vote or
+    <a href="/delete-vote?id={{.Vote.ID.String}}">delete</a>
+    it.
+  </span>
+</div>
+
+<!---->
 {{end}}
 <!---->
 {{end}}

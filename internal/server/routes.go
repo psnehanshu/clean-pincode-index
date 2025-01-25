@@ -195,12 +195,16 @@ func (s *Server) mountRoutes(app *fiber.App) {
 			}
 		}
 
+		// Show success?
+		shouldShowSuccess := strings.ToLower(c.Query("show_success", "false")) == "true"
+
 		return c.Render("views/vote", fiber.Map{
-			"Pincode": pincode,
-			"Info":    pincodeResult,
-			"User":    user,
-			"Vote":    vote,
-			"State":   strings.Join(s.getStatesForPincodes(pincodeResult), "/"),
+			"Pincode":     pincode,
+			"Info":        pincodeResult,
+			"User":        user,
+			"Vote":        vote,
+			"State":       strings.Join(s.getStatesForPincodes(pincodeResult), "/"),
+			"showSuccess": shouldShowSuccess,
 		})
 	})
 
@@ -307,7 +311,7 @@ func (s *Server) mountRoutes(app *fiber.App) {
 			return err
 		}
 
-		return c.Redirect(fmt.Sprintf("/vote?pin=%d", pincode))
+		return c.Redirect(fmt.Sprintf("/vote?pin=%d&show_success=true", pincode))
 	})
 
 	app.Post("/google-login", func(c *fiber.Ctx) error {
