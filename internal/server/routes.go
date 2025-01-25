@@ -101,17 +101,6 @@ func (s *Server) mountRoutes(app *fiber.App) {
 			return fiber.NewError(http.StatusNotFound, "pincode not found")
 		}
 
-		// Find all unique states, in 99.99% cases, there will be only one state
-		statesMap := make(map[string]bool)
-		states := make([]string, 0, len(pincodeResult))
-		for _, p := range pincodeResult {
-			if statesMap[p.Statename.String] {
-				continue
-			}
-			statesMap[p.Statename.String] = true
-			states = append(states, p.Statename.String)
-		}
-
 		// Calculate votes
 		votes, err := s.queries.GetPincodeVotes(c.Context(), pincode.Int32)
 		if err != nil {
@@ -125,7 +114,7 @@ func (s *Server) mountRoutes(app *fiber.App) {
 		return c.Render("views/pincode", fiber.Map{
 			"PostOffices": pincodeResult,
 			"Pincode":     pincode,
-			"State":       strings.Join(states, "/"),
+			"State":       strings.Join(s.getStatesForPincodes(pincodeResult), "/"),
 			"Votes":       votes,
 			"TotalVotes":  votes.Upvotes - votes.Downvotes,
 		})
@@ -143,14 +132,7 @@ func (s *Server) mountRoutes(app *fiber.App) {
 		}
 
 		// Check logged in status
-		user, err := s.getUserFromSession(c)
-		if err != nil {
-			if fErr, ok := err.(*fiber.Error); ok {
-				return fErr
-			} else {
-				s.logger.Warnw("failed to get user from session", "error", err)
-			}
-		}
+		user := s.getRequestUser(c)
 
 		// fetch existing vote
 		var vote *queries.Vote
@@ -174,13 +156,13 @@ func (s *Server) mountRoutes(app *fiber.App) {
 			"ClientID": os.Getenv("GOOGLE_CLIENT_ID"),
 			"User":     user,
 			"Vote":     vote,
+			"State":    strings.Join(s.getStatesForPincodes(pincodeResult), "/"),
 		})
 	})
 
 	app.Post("/vote", func(c *fiber.Ctx) error {
-		user, err := s.getUserFromSession(c)
-		if err != nil {
-			s.logger.Errorw("session error", "error", err)
+		user := s.getRequestUser(c)
+		if user == nil {
 			return fiber.NewError(http.StatusUnauthorized)
 		}
 

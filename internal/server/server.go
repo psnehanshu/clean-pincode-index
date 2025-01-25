@@ -76,6 +76,14 @@ func (s *Server) Start(addr string) error {
 		ErrorHandler:      s.handleErrors,
 	})
 
+	app.Use(func(c *fiber.Ctx) error {
+		if err := s.populateRequestUser(c); err != nil {
+			return err
+		}
+
+		return c.Next()
+	})
+
 	// Mount routes
 	s.mountRoutes(app)
 

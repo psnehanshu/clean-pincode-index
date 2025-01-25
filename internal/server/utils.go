@@ -6,6 +6,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"os"
+	"slices"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -68,7 +69,7 @@ func (s *Server) getUserFromSession(c *fiber.Ctx) (*queries.User, error) {
 
 	jwtToken, ok := sess.Get("logged-in-user").(string)
 	if !ok {
-		return nil, fmt.Errorf("logged-in-user cookie not found")
+		return nil, nil
 	}
 
 	loggedInUserId, err := getUserIdFromLoginJWT(jwtToken)
@@ -84,7 +85,7 @@ func (s *Server) getUserFromSession(c *fiber.Ctx) (*queries.User, error) {
 	user, err := s.queries.GetUserByID(c.Context(), uuid)
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return nil, fmt.Errorf("user not found")
+			return nil, nil
 		}
 
 		s.logger.Errorw("failed to get user by id", "error", err)
@@ -113,6 +114,23 @@ func (s *Server) handleErrors(c *fiber.Ctx, err error) error {
 func (s *Server) uploadPicsForVote([]*multipart.FileHeader, pgtype.UUID) error {
 	s.logger.Warn("uploadPicsForVote hasn't been implemented yet")
 	return nil
+}
+
+// Find all unique states. In 99.99% cases, there will be only one state
+func (s *Server) getStatesForPincodes(pincodes []queries.Pincode) []string {
+	statesMap := make(map[string]bool)
+	states := make([]string, 0, len(pincodes))
+
+	for _, p := range pincodes {
+		if statesMap[p.Statename.String] {
+			continue
+		}
+		statesMap[p.Statename.String] = true
+		states = append(states, p.Statename.String)
+	}
+
+	slices.Sort(states)
+	return states
 }
 
 func generateLoginJWT(user *queries.User, expiry time.Time) (string, error) {
@@ -147,5 +165,22 @@ func getUserIdFromLoginJWT(token string) (string, error) {
 		return sub, nil
 	} else {
 		return "", fmt.Errorf("subject not found")
+	}
+}
+
+func (Server) getRequestUser(c *fiber.Ctx) *queries.User {
+	user, ok := c.Locals("user").(*queries.User)
+	if !ok {
+		return nil
+	}
+	return user
+}
+
+func (s *Server) populateRequestUser(c *fiber.Ctx) error {
+	if user, err := s.getUserFromSession(c); err != nil {
+		return err
+	} else {
+		c.Locals("user", user)
+		return nil
 	}
 }

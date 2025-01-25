@@ -1,3 +1,5 @@
+<h1 class="is-size-2">Cast your vote for {{.Pincode}}, {{.State}}</h1>
+
 {{if eq .User nil }}
 <script src="https://accounts.google.com/gsi/client" async></script>
 <script>
@@ -96,12 +98,12 @@
   <input type="submit" value="downvote" name="vote_type" />
 </form>
 {{else}}
-<p>
+<div class="notification is-info">
   You have already voted for this pincode. You can either
   <a href="/update-vote?id={{.Vote.ID.String}}">update</a> your vote or
   <a href="/delete-vote?id={{.Vote.ID.String}}">delete</a>
   it.
-</p>
+</div>
 {{end}}
 <!---->
 {{end}}
