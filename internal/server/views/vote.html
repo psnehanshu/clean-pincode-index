@@ -36,8 +36,16 @@
   <div class="card-content">
     {{if eq .User nil }}
 
-    <div>You must login to vote</div>
-    <a href="/login?return=%2Fvote%3Fpin%3D{{.Pincode}}">Login</a>
+    <div>
+      <span class="icon"><i class="fa-solid fa-triangle-exclamation"></i></span>
+      You must login to vote
+    </div>
+    <a class="button my-4" href="/login?return=%2Fvote%3Fpin%3D{{.Pincode}}">
+      <span class="icon">
+        <i class="fa-solid fa-right-to-bracket"></i>
+      </span>
+      <span>Proceed to Login</span>
+    </a>
 
     {{else}}
     <!---->

@@ -21,6 +21,11 @@
       [x-cloak] {
         display: none !important;
       }
+      html,
+      body {
+        margin: 0;
+        min-height: 100vh; /* Ensure root elements fill the viewport */
+      }
     </style>
 
     <script type="application/json" id="userJson">
@@ -139,7 +144,7 @@
       </nav>
     </header>
 
-    <main class="container px-4 py-4" style="min-height: 80vh">{{embed}}</main>
+    <main class="container px-4 py-4" style="min-height: 75vh">{{embed}}</main>
 
     <footer class="footer">
       <div class="content has-text-centered">

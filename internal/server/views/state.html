@@ -1,9 +1,9 @@
 {{$state := .State}}
-<h1>{{.State}}</h1>
+<h1 class="is-size-4 mb-4">Districts in {{.State}}</h1>
 
-<ul>
+<ul class="grid">
   {{range .Districts}}
-  <li>
+  <li class="cell">
     <a href="/state/{{$state}}/district/{{.String}}"> {{.String}} </a>
   </li>
   {{end}}

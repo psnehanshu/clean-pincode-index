@@ -1,7 +1,11 @@
-<ul>
-  {{range .States}}
-  <li>
-    <a href="/state/{{.String}}">{{.String}}</a>
-  </li>
-  {{end}}
-</ul>
+<h1 class="is-size-4 mb-4">All states and UTs in India</h1>
+
+<div class="fixed-grid">
+  <ul class="grid">
+    {{range .States}}
+    <li class="cell">
+      <a href="/state/{{.String}}">{{.String}}</a>
+    </li>
+    {{end}}
+  </ul>
+</div>

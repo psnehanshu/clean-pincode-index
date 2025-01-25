@@ -55,31 +55,37 @@
 </script>
 
 <div
+  id="g_id_onload"
+  data-client_id="{{.ClientID}}"
+  data-context="signin"
+  data-ux_mode="popup"
+  data-callback="handleGoogleLogin"
+  data-auto_prompt="false"
+></div>
+
+<div
+  x-cloak
   x-data="google_login_state"
   @googlelogin.window="handleGoogleLogin"
-  x-cloak
+  style="height: 80vh"
+  class="is-flex is-justify-content-center is-align-items-center"
 >
-  <div x-show="pending" class="p-4">
-    <span class="icon"><i class="fa-solid fa-spinner fa-pulse"></i></span>
-    <span>Logging you in...</span>
-  </div>
+  <div>
+    <h1 class="is-size-4 mb-4 has-text-centered">
+      To continue, you have to login
+    </h1>
 
-  <div
-    id="g_id_onload"
-    data-client_id="{{.ClientID}}"
-    data-context="signin"
-    data-ux_mode="popup"
-    data-callback="handleGoogleLogin"
-    data-auto_prompt="false"
-  ></div>
-
-  <div x-show="!pending" style="max-width: 16rem">
+    <div x-show="pending" class="p-4">
+      <span class="icon"><i class="fa-solid fa-spinner fa-pulse"></i></span>
+      <span>Logging you in...</span>
+    </div>
     <div
-      class="g_id_signin"
+      x-show="!pending"
+      class="g_id_signin mx-auto"
       data-type="standard"
-      data-shape="pill"
+      data-shape="rectangular"
       data-theme="filled_blue"
-      data-text="continue_with"
+      data-text="signin_with"
       data-size="large"
       data-logo_alignment="left"
     ></div>

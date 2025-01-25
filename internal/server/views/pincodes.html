@@ -1,10 +1,24 @@
-<ul>
+<h1 class="is-size-4 mb-4">All pincodes in India</h1>
+
+<ul class="grid">
   {{range .Pincodes}}
-  <li>
+  <li class="cell">
     <a href="/pincode/{{.Int32}}">{{.Int32}}</a>
   </li>
   {{end}}
 </ul>
 
-<a href="/pincode?limit={{.Limit}}&page={{.PrevPage}}">&larr; Previous</a>
-<a href="/pincode?limit={{.Limit}}&page={{.NextPage}}">Next &rarr;</a>
+<nav class="pagination" role="navigation" aria-label="pagination">
+  <a
+    class="pagination-previous"
+    href="/pincode?limit={{.Limit}}&page={{.PrevPage}}"
+  >
+    Previous page
+  </a>
+  <a
+    class="pagination-next"
+    href="/pincode?limit={{.Limit}}&page={{.NextPage}}"
+  >
+    Next page
+  </a>
+</nav>

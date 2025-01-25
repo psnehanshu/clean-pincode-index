@@ -1,8 +1,8 @@
-<h1>{{.District}}, {{.State}}</h1>
+<h1 class="is-size-4 mb-4">Pincodes in {{.District}}, {{.State}}</h1>
 
-<ul>
+<ul class="grid">
   {{range .Pincodes}}
-  <li>
+  <li class="cell">
     <a href="/pincode/{{.Int32}}">{{.Int32}}</a>
   </li>
   {{end}}
