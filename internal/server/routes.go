@@ -17,10 +17,13 @@ import (
 	"github.com/lestrrat-go/jwx/v3/jwk"
 	"github.com/lestrrat-go/jwx/v3/jwt"
 	"github.com/psnehanshu/cleanpincode.in/internal/queries"
+	"github.com/psnehanshu/cleanpincode.in/internal/turnstile"
 )
 
 // Mount routes
 func (s *Server) mountRoutes(app *fiber.App) {
+	cfSiteVerify := turnstile.New(os.Getenv("CF_SECRET_KEY"))
+
 	app.Get("/", func(c *fiber.Ctx) error {
 		mostUpvoted, err := s.queries.MostUpvoted(c.Context(), queries.MostUpvotedParams{Limit: 5})
 		if err != nil {
@@ -213,6 +216,7 @@ func (s *Server) mountRoutes(app *fiber.App) {
 			"Vote":        vote,
 			"State":       strings.Join(s.getStatesForPincodes(pincodeResult), "/"),
 			"showSuccess": shouldShowSuccess,
+			"CfSiteKey":   os.Getenv("CF_SITE_KEY"),
 		})
 	})
 
@@ -222,13 +226,23 @@ func (s *Server) mountRoutes(app *fiber.App) {
 			return fiber.NewError(http.StatusUnauthorized)
 		}
 
-		// check if ajax
-		isAjax := c.QueryBool("ajax")
-
 		// Parse the multipart form
 		form, err := c.MultipartForm()
 		if err != nil {
 			return err
+		}
+
+		// Verify Turnstile
+		{
+			token := form.Value["cf-turnstile-response"]
+			if len(token) < 1 {
+				return fiber.NewError(http.StatusBadRequest, "CAPTCHA response token not submitted")
+			}
+
+			if err := cfSiteVerify.Verify(c.Context(), token[0]); err != nil {
+				s.logger.Errorw("CAPTCHA verification failed", "error", err)
+				return fiber.NewError(http.StatusForbidden, "CAPTCHA verification failed")
+			}
 		}
 
 		// Extract vote type
@@ -333,7 +347,7 @@ func (s *Server) mountRoutes(app *fiber.App) {
 
 		redirectTo := fmt.Sprintf("/vote?pin=%d&show_success=true", pincode)
 
-		if isAjax {
+		if isAjaxReq(c) {
 			return c.JSON(fiber.Map{"vote_id": vote.ID, "redirect": redirectTo})
 		}
 

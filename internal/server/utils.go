@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -108,7 +109,14 @@ func (s *Server) handleErrors(c *fiber.Ctx, err error) error {
 		s.logger.Errorw("Error caught", "error", err)
 	}
 
-	return c.Render("views/error", fiber.Map{"Code": code, "Message": msg})
+	c.Status(code)
+	data := fiber.Map{"Code": code, "Message": msg}
+
+	if isAjaxReq(c) {
+		return c.JSON(data)
+	}
+
+	return c.Render("views/error", data)
 }
 
 func (s *Server) uploadPicsForVote(pics []*multipart.FileHeader, _ pgtype.UUID) error {
@@ -183,4 +191,9 @@ func (s *Server) populateRequestUser(c *fiber.Ctx) error {
 		c.Locals("user", user)
 		return nil
 	}
+}
+
+func isAjaxReq(c *fiber.Ctx) bool {
+	accept := strings.ToLower(string(c.Request().Header.Peek("Accept")))
+	return accept == "application/json"
 }
