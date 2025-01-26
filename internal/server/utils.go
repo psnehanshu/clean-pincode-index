@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"mime/multipart"
@@ -11,10 +12,12 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/lestrrat-go/jwx/v3/jwa"
 	"github.com/lestrrat-go/jwx/v3/jwt"
+	"github.com/minio/minio-go/v7"
 	"github.com/psnehanshu/cleanpincode.in/internal/queries"
 )
 
@@ -119,9 +122,20 @@ func (s *Server) handleErrors(c *fiber.Ctx, err error) error {
 	return c.Render("views/error", data)
 }
 
-func (s *Server) uploadPicsForVote(pics []*multipart.FileHeader, _ pgtype.UUID) error {
-	s.logger.Warnw("uploadPicsForVote hasn't been implemented yet", "count", len(pics))
-	return nil
+func (s *Server) saveFile(ctx context.Context, fileH *multipart.FileHeader, location string) (string, error) {
+	file, err := fileH.Open()
+	if err != nil {
+		return "", err
+	}
+
+	objectName := fmt.Sprintf("%s/%s__%s", location, uuid.New().String(), fileH.Filename)
+
+	if _, err := s.s3.PutObject(ctx, s.bucketName, objectName, file, fileH.Size, minio.PutObjectOptions{}); err != nil {
+
+		return "", err
+	}
+
+	return objectName, nil
 }
 
 // Find all unique states. In 99.99% cases, there will be only one state

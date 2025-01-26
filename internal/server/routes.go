@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -18,6 +19,7 @@ import (
 	"github.com/lestrrat-go/jwx/v3/jwt"
 	"github.com/psnehanshu/cleanpincode.in/internal/queries"
 	"github.com/psnehanshu/cleanpincode.in/internal/turnstile"
+	"golang.org/x/sync/errgroup"
 )
 
 // Mount routes
@@ -305,6 +307,8 @@ func (s *Server) mountRoutes(app *fiber.App) {
 		if err != nil {
 			return err
 		}
+		defer tx.Rollback(c.Context())
+
 		qtx := s.queries.WithTx(tx)
 
 		if vote == nil {
@@ -328,16 +332,39 @@ func (s *Server) mountRoutes(app *fiber.App) {
 			}
 		}
 
-		// Get all uploaded pics
-		pics := form.File["pics"]
-		if err := s.uploadPicsForVote(pics, vote.ID); err != nil {
-			// roll back vote
-			if err := tx.Rollback(c.Context()); err != nil {
+		// Upload pics
+		{
+			g, ctx := errgroup.WithContext(c.Context())
+			g.SetLimit(5)
+			pics := form.File["pics"]
+			fileNames := make([]string, 0, len(pics))
+			var mu sync.Mutex
+
+			for _, pic := range pics {
+				g.Go(func() error {
+					if fileName, err := s.saveFile(ctx, pic, fmt.Sprintf("vote-pics/%s", vote.ID)); err != nil {
+						return err
+					} else {
+						mu.Lock()
+						fileNames = append(fileNames, fileName)
+						mu.Unlock()
+					}
+					return nil
+				})
+			}
+
+			if err := g.Wait(); err != nil {
 				return err
 			}
 
-			// end request with error
-			return err
+			// Save pic info in DB
+			voteIds := make([]pgtype.UUID, 0, len(fileNames))
+			for i := 0; i < len(fileNames); i++ {
+				voteIds = append(voteIds, vote.ID)
+			}
+			if err := qtx.InsertVoteFiles(c.Context(), queries.InsertVoteFilesParams{Column1: fileNames, Column2: voteIds}); err != nil {
+				return err
+			}
 		}
 
 		// Save vote

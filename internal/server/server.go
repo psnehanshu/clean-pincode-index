@@ -4,6 +4,7 @@ import (
 	"context"
 	"embed"
 	"net/http"
+	"os"
 	"text/template"
 
 	"github.com/gofiber/fiber/v2"
@@ -11,6 +12,8 @@ import (
 	pgStorage "github.com/gofiber/storage/postgres/v3"
 	"github.com/gofiber/template/html/v2"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/psnehanshu/cleanpincode.in/internal/queries"
 	"go.uber.org/zap"
 )
@@ -20,6 +23,8 @@ type Server struct {
 	db           *pgxpool.Pool
 	queries      *queries.Queries
 	sessionStore *session.Store
+	s3           *minio.Client
+	bucketName   string
 	close        func() error
 }
 
@@ -51,8 +56,17 @@ func New(dbConnStr string) (*Server, error) {
 		Storage: pgStorage.New(pgStorage.Config{DB: dbPool, Table: "__session_store"}),
 	})
 
+	// Initialize minio client object.
+	minioClient, err := minio.New(os.Getenv("S3_ENDPOINT"), &minio.Options{
+		Creds:  credentials.NewStaticV4(os.Getenv("S3_ACCESS_KEY_ID"), os.Getenv("S3_SECRET_ACCESS_KEY"), ""),
+		Secure: false,
+	})
+	if err != nil {
+		return nil, err
+	}
+
 	// Return instance
-	return &Server{logger, dbPool, q, sessionStore, close}, nil
+	return &Server{logger, dbPool, q, sessionStore, minioClient, os.Getenv("S3_BUCKET_NAME"), close}, nil
 }
 
 //go:embed views

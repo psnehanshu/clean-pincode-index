@@ -62,3 +62,9 @@ INSERT INTO votes (type, pincode, voter_id, comment) VALUES ($1, $2, $3, $4) RET
 
 -- name: UpdateExistingVote :exec
 UPDATE votes SET type = $1, comment = $3 WHERE id = $2;
+
+-- name: InsertVoteFiles :exec
+INSERT INTO vote_pics (link, vote_id) VALUES (  
+  unnest($1::text[]),  
+  unnest($2::UUID[])  
+);
