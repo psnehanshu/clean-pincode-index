@@ -169,13 +169,41 @@ func (s *Server) mountRoutes(app *fiber.App) {
 			}
 		}
 
+		// Fetch media
+		pics, err := s.queries.GetPincodeMedia(c.Context(), queries.GetPincodeMediaParams{Pincode: pincode, Limit: 50, Offset: 0})
+		if err != nil {
+			s.logger.Errorw("failed to fetch Pincode pics", "error", err, "pincode", pincode.Int32)
+		}
+
+		// generate public URLs for the pics
+
 		return c.Render("views/pincode", fiber.Map{
 			"PostOffices": pincodeResult,
 			"Pincode":     pincode,
 			"State":       strings.Join(s.getStatesForPincodes(pincodeResult), "/"),
 			"Votes":       votes,
 			"TotalVotes":  votes.Upvotes - votes.Downvotes,
+			"Pics":        pics,
 		})
+	})
+
+	app.Get("/media/:id", func(c *fiber.Ctx) error {
+		var id pgtype.UUID
+		if err := id.Scan(c.Params("id")); err != nil {
+			return err
+		}
+
+		media, err := s.queries.GetMediaInfo(c.Context(), id)
+		if err != nil {
+			return err
+		}
+
+		url, err := s.s3.PresignedGetObject(c.Context(), s.bucketName, media.Link, 2*time.Minute, url.Values{})
+		if err != nil {
+			return err
+		}
+
+		return c.Redirect(url.String())
 	})
 
 	app.Get("/vote", func(c *fiber.Ctx) error {

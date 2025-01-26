@@ -2,6 +2,14 @@
 SELECT * FROM pincodes
 WHERE Pincode = $1;
 
+-- name: GetPincodeMedia :many
+SELECT vp.* FROM pincodes p
+INNER JOIN votes v ON v.pincode = p.Pincode
+INNER JOIN vote_pics vp ON vp.vote_id = v.id
+WHERE p.Pincode = $1
+ORDER BY vp.created_at DESC
+LIMIT $2 OFFSET $3;
+
 -- name: GetPincodes :many
 SELECT DISTINCT Pincode FROM pincodes
 ORDER BY Pincode
@@ -68,3 +76,6 @@ INSERT INTO vote_pics (link, vote_id) VALUES (
   unnest($1::text[]),  
   unnest($2::UUID[])  
 );
+
+-- name: GetMediaInfo :one
+SELECT * FROM vote_pics WHERE id = $1;

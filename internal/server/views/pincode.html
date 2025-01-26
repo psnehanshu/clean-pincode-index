@@ -1,8 +1,8 @@
 <h1 class="is-size-4 mb-4">Pincode {{.Pincode.Int32}}, {{.State}}</h1>
 
 <div class="columns">
-  <div class="column is-two-thirds content">
-    <p>
+  <div class="column is-two-thirds">
+    <p class="content">
       Are you frustrated with the cleanliness of the areas within pincode
       {{.Pincode.Int32}} in {{.State}}? Want to make your voice heard and hold
       your local leaders accountable? Now’s your chance! Cast your vote and let
@@ -19,6 +19,19 @@
     >
       Cast your vote
     </a>
+    <div class="fixed-grid has-4-cols">
+      <ul class="grid">
+        {{range .Pics}}
+        <li class="cell">
+          <a href="/media/{{.ID.String}}" target="_blank">
+            <figure class="image is-128x128">
+              <img src="/media/{{.ID.String}}" alt="A photo of this pincode" />
+            </figure>
+          </a>
+        </li>
+        {{end}}
+      </ul>
+    </div>
   </div>
 
   <div class="column is-one-third">
@@ -55,10 +68,3 @@
     </table>
   </div>
 </div>
-
-<!-- <h2>Offices</h2>
-<ul>
-  {{range .PostOffices}}
-  <li>{{.Officename.String}}</li>
-  {{end}}
-</ul> -->

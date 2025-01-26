@@ -131,7 +131,6 @@ func (s *Server) saveFile(ctx context.Context, fileH *multipart.FileHeader, loca
 	objectName := fmt.Sprintf("%s/%s__%s", location, uuid.New().String(), fileH.Filename)
 
 	if _, err := s.s3.PutObject(ctx, s.bucketName, objectName, file, fileH.Size, minio.PutObjectOptions{}); err != nil {
-
 		return "", err
 	}
 
