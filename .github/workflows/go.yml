@@ -20,14 +20,13 @@ jobs:
         with:
           go-version: "1.23.3"
 
-      - name: Build
+      - name: Install sqlc and generate queries
         run: |
           go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
           sqlc generate
-          go build -v .
+
+      - name: Build
+        run: go build -v .
 
       - name: Test
-        run: |
-          go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
-          sqlc generate
-          go test -v .
+        run: go test -v .
