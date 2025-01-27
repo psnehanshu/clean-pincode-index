@@ -222,59 +222,69 @@
               @click="inputFocused = true"
               @click.away="inputFocused = false"
             >
-              <div class="field has-addons">
-                <div class="control has-icons-left">
-                  <input
-                    type="text"
-                    name="query"
-                    placeholder="Pincodes, districts etc."
-                    class="input"
-                    x-model="query"
-                    autocomplete="off"
-                    @focus="inputFocused = true"
-                    @keyup="showAutocomplete"
-                    @keydown.arrow-down.prevent="navDown"
-                    @keydown.arrow-up.prevent="navUp"
-                    @keydown.enter="handleEnter"
-                  />
+              <div>
+                <div
+                  class="field has-addons"
+                  style="position: relative; top: 0.5rem"
+                >
+                  <div class="control has-icons-left">
+                    <input
+                      type="text"
+                      name="query"
+                      placeholder="Pincodes, districts etc."
+                      class="input"
+                      x-model="query"
+                      autocomplete="off"
+                      @focus="inputFocused = true"
+                      @keyup="showAutocomplete"
+                      @keydown.arrow-down.prevent="navDown"
+                      @keydown.arrow-up.prevent="navUp"
+                      @keydown.enter="handleEnter"
+                    />
 
-                  <span class="icon is-small is-left">
-                    <i :class="icon"></i>
-                  </span>
+                    <span class="icon is-small is-left">
+                      <i :class="icon"></i>
+                    </span>
+                  </div>
+                  <div class="control">
+                    <button class="button">
+                      <span class="icon"><i class="fas fa-search"></i></span>
+                    </button>
+                  </div>
                 </div>
-                <div class="control">
-                  <button class="button">
-                    <span class="icon"><i class="fas fa-search"></i></span>
-                  </button>
-                </div>
-              </div>
-              <div
-                x-show="shouldShowResults"
-                class="card"
-                style="position: absolute; top: 3.2em; left: 0.5em; z-index: 1"
-              >
-                <div class="card-content">
-                  <ul>
-                    <template x-for="(res, i) in results">
+                <div
+                  x-show="shouldShowResults"
+                  class="card"
+                  style="
+                    position: absolute;
+                    top: 3.7em;
+                    left: 0.5em;
+                    z-index: 1;
+                  "
+                >
+                  <div class="card-content">
+                    <ul>
+                      <template x-for="(res, i) in results">
+                        <li
+                          class="result"
+                          :class="{'result-focused':currentlyFocused == i}"
+                        >
+                          <a
+                            x-text="formatItem(res)"
+                            :href="'/pincode/'+res.Pincode"
+                          ></a>
+                        </li>
+                      </template>
                       <li
-                        class="result"
-                        :class="{'result-focused':currentlyFocused == i}"
+                        class="result is-flex is-justify-content-center"
+                        :class="{'result-focused':currentlyFocused == results.length}"
                       >
-                        <a
-                          x-text="formatItem(res)"
-                          :href="'/pincode/'+res.Pincode"
-                        ></a>
+                        <button type="submit" class="button">
+                          View all results
+                        </button>
                       </li>
-                    </template>
-                    <li
-                      class="result is-flex is-justify-content-center"
-                      :class="{'result-focused':currentlyFocused == results.length}"
-                    >
-                      <button type="submit" class="button">
-                        View all results
-                      </button>
-                    </li>
-                  </ul>
+                    </ul>
+                  </div>
                 </div>
               </div>
             </form>
