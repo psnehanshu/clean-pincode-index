@@ -21,10 +21,26 @@
       [x-cloak] {
         display: none !important;
       }
+
       html,
       body {
         margin: 0;
         min-height: 100vh; /* Ensure root elements fill the viewport */
+      }
+
+      a:hover {
+        text-decoration: underline;
+      }
+
+      .result {
+        border-width: 1px;
+        border-color: transparent;
+        border-style: dashed;
+        padding: 0.5rem;
+        border-radius: 8px;
+      }
+      .result-focused {
+        border-color: hsl(0, 0%, 48%);
       }
     </style>
 
@@ -77,19 +93,76 @@
       function searchComp() {
         return {
           query: "{{.Query}}",
+          results: [],
+          loading: false,
+          inputFocused: false,
+          currentlyFocused: -1,
+          get icon() {
+            if (this.loading) return "fa-solid fa-spinner fa-pulse";
+            return "fas fa-search";
+          },
+          get shouldShowResults() {
+            return this.results.length > 0 && this.query && this.inputFocused;
+          },
           setup() {
-            // setup debounce
             this.showAutocomplete = debounce(this.showAutocomplete, 1000);
           },
           async showAutocomplete() {
-            const url = new URL("/search", window.location);
-            url.searchParams.set("query", this.query);
-            url.searchParams.set("limit", 5);
-            url.searchParams.set("page", 1);
+            if (!this.query) return;
 
-            const resp = await fetch(url, {
-              headers: { accept: "application/json" },
-            });
+            try {
+              this.loading = true;
+
+              const url = new URL("/search", window.location);
+              url.searchParams.set("query", this.query);
+              url.searchParams.set("limit", 5);
+              url.searchParams.set("page", 1);
+
+              const resp = await fetch(url, {
+                headers: { accept: "application/json" },
+              });
+
+              if (!resp.ok) {
+                throw new Error("failed to search");
+              }
+
+              const data = await resp.json();
+              this.results = data.Results ?? [];
+            } catch (error) {
+              console.error(error);
+            } finally {
+              this.loading = false;
+            }
+          },
+          formatItem(result) {
+            return `${result.Pincode}, ${result.District}, ${result.Statename}`;
+          },
+          handleEnter(event) {
+            if (
+              this.currentlyFocused >= 0 &&
+              this.currentlyFocused < this.results.length
+            ) {
+              event.preventDefault();
+              window.location = `/pincode/${
+                this.results[this.currentlyFocused].Pincode
+              }`;
+            }
+          },
+          navDown() {
+            if (this.currentlyFocused >= this.results.length) {
+              this.currentlyFocused = 0;
+            } else {
+              this.currentlyFocused++;
+            }
+          },
+          navUp() {
+            if (this.currentlyFocused <= -1) {
+              this.currentlyFocused = this.results.length;
+            } else if (this.currentlyFocused > this.results.length) {
+              this.currentlyFocused = this.results.length;
+            } else {
+              this.currentlyFocused--;
+            }
           },
         };
       }
@@ -146,27 +219,62 @@
               class="navbar-item"
               x-data="searchComp"
               x-init="setup"
+              @click="inputFocused = true"
+              @click.away="inputFocused = false"
             >
               <div class="field has-addons">
                 <div class="control has-icons-left">
                   <input
                     type="text"
                     name="query"
-                    placeholder="Search"
+                    placeholder="Pincodes, districts etc."
                     class="input"
                     x-model="query"
-                    @keyup="showAutocomplete"
                     autocomplete="off"
+                    @focus="inputFocused = true"
+                    @keyup="showAutocomplete"
+                    @keydown.arrow-down.prevent="navDown"
+                    @keydown.arrow-up.prevent="navUp"
+                    @keydown.enter="handleEnter"
                   />
 
                   <span class="icon is-small is-left">
-                    <i class="fas fa-search"></i>
+                    <i :class="icon"></i>
                   </span>
                 </div>
                 <div class="control">
                   <button class="button">
                     <span class="icon"><i class="fas fa-search"></i></span>
                   </button>
+                </div>
+              </div>
+              <div
+                x-show="shouldShowResults"
+                class="card"
+                style="position: absolute; top: 3.2em; left: 0.5em; z-index: 1"
+              >
+                <div class="card-content">
+                  <ul>
+                    <template x-for="(res, i) in results">
+                      <li
+                        class="result"
+                        :class="{'result-focused':currentlyFocused == i}"
+                      >
+                        <a
+                          x-text="formatItem(res)"
+                          :href="'/pincode/'+res.Pincode"
+                        ></a>
+                      </li>
+                    </template>
+                    <li
+                      class="result is-flex is-justify-content-center"
+                      :class="{'result-focused':currentlyFocused == results.length}"
+                    >
+                      <button type="submit" class="button">
+                        View all results
+                      </button>
+                    </li>
+                  </ul>
                 </div>
               </div>
             </form>
@@ -203,7 +311,9 @@
       </nav>
     </header>
 
-    <main class="container px-4 py-4" style="min-height: 75vh">{{embed}}</main>
+    <main class="container px-4 py-4 mt-5" style="min-height: 75vh">
+      {{embed}}
+    </main>
 
     <footer class="footer">
       <div class="content has-text-centered">
