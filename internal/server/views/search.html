@@ -1,0 +1,51 @@
+<h1 class="is-size-4 mb-4">Searching for &ldquo;{{.Query}}&rdquo;</h1>
+
+{{if eq .Count 0}}
+
+<h2>No results found</h2>
+
+{{else}}
+
+<table class="table is-fullwidth">
+  <thead>
+    <tr>
+      <th>Pincode</th>
+      <th>District</th>
+      <th>State</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{range .Results}}
+    <tr>
+      <td>
+        <a href="/pincode/{{.Pincode.Int32}}">{{.Pincode.Int32}}</a>
+      </td>
+      <td>
+        <a href="/state/{{.Statename.String}}/district/{{.District.String}}">
+          {{.District.String}}
+        </a>
+      </td>
+      <td>
+        <a href="/state/{{.Statename.String}}">{{.Statename.String}}</a>
+      </td>
+    </tr>
+    {{end}}
+  </tbody>
+</table>
+
+<nav class="pagination" role="navigation" aria-label="pagination">
+  <a
+    class="pagination-previous"
+    href="/search?query={{urlencode .Query}}&limit={{.Limit}}&page={{.PrevPage}}"
+  >
+    Previous page
+  </a>
+  <a
+    class="pagination-next"
+    href="/search?query={{urlencode .Query}}&limit={{.Limit}}&page={{.NextPage}}"
+  >
+    Next page
+  </a>
+</nav>
+
+{{end}}

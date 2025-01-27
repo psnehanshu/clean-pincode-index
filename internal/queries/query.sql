@@ -79,3 +79,10 @@ INSERT INTO vote_pics (link, vote_id) VALUES (
 
 -- name: GetMediaInfo :one
 SELECT * FROM vote_pics WHERE id = $1;
+
+-- name: Search :many
+SELECT Pincode, District, StateName FROM Pincodes
+WHERE District ILIKE $1 OR pincode::TEXT ILIKE $1 OR StateName ILIKE $1
+GROUP BY Pincode, District, StateName
+ORDER BY Pincode
+LIMIT $2 OFFSET $3;

@@ -4,6 +4,7 @@ import (
 	"context"
 	"embed"
 	"net/http"
+	"net/url"
 	"os"
 	"text/template"
 
@@ -83,6 +84,9 @@ func (s *Server) Start(addr string) error {
 		},
 		"rank_top_3": func(rank int) bool {
 			return rank >= 0 && rank <= 2
+		},
+		"urlencode": func(v string) string {
+			return url.QueryEscape(v)
 		},
 	})
 

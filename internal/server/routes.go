@@ -536,4 +536,48 @@ func (s *Server) mountRoutes(app *fiber.App) {
 			"Pincodes": pincodes,
 		})
 	})
+
+	app.Get("/search", func(c *fiber.Ctx) error {
+		searchQuery := strings.TrimSpace(c.Query("query"))
+		if ues, err := url.QueryUnescape(searchQuery); err != nil {
+			s.logger.Warnw("failed to unescape search term", "error", err, "query", searchQuery)
+		} else {
+			searchQuery = ues
+		}
+
+		if searchQuery == "" {
+			return fiber.NewError(http.StatusBadRequest, "Query must not be empty")
+		}
+
+		limit := c.QueryInt("limit", 20)
+		page := c.QueryInt("page", 1)
+		if limit < 1 {
+			limit = 1
+		}
+		if page < 1 {
+			page = 1
+		}
+
+		results, err := s.queries.Search(c.Context(), queries.SearchParams{
+			District: pgtype.Text{String: fmt.Sprintf("%%%s%%", searchQuery), Valid: true},
+			Limit:    int32(limit),
+			Offset:   int32((page - 1) * limit),
+		})
+		if err != nil {
+			return err
+		}
+
+		data := fiber.Map{
+			"Results": results, "Query": searchQuery,
+			"Count": len(results),
+			"Limit": limit, "Page": page,
+			"PrevPage": page - 1, "NextPage": page + 1,
+		}
+
+		if isAjaxReq(c) {
+			return c.JSON(data)
+		}
+
+		return c.Render("views/search", data)
+	})
 }

@@ -61,8 +61,36 @@
   <body class="has-navbar-fixed-top">
     <script>
       function headerComp() {
+        return { user: window.user };
+      }
+
+      function debounce(func, delay) {
+        let timeoutId;
+        return function (...args) {
+          clearTimeout(timeoutId);
+          timeoutId = setTimeout(() => {
+            func.apply(this, args);
+          }, delay);
+        };
+      }
+
+      function searchComp() {
         return {
-          user: window.user,
+          query: "{{.Query}}",
+          setup() {
+            // setup debounce
+            this.showAutocomplete = debounce(this.showAutocomplete, 1000);
+          },
+          async showAutocomplete() {
+            const url = new URL("/search", window.location);
+            url.searchParams.set("query", this.query);
+            url.searchParams.set("limit", 5);
+            url.searchParams.set("page", 1);
+
+            const resp = await fetch(url, {
+              headers: { accept: "application/json" },
+            });
+          },
         };
       }
     </script>
@@ -112,6 +140,37 @@
           </div>
 
           <div class="navbar-end">
+            <form
+              action="/search"
+              method="get"
+              class="navbar-item"
+              x-data="searchComp"
+              x-init="setup"
+            >
+              <div class="field has-addons">
+                <div class="control has-icons-left">
+                  <input
+                    type="text"
+                    name="query"
+                    placeholder="Search"
+                    class="input"
+                    x-model="query"
+                    @keyup="showAutocomplete"
+                    autocomplete="off"
+                  />
+
+                  <span class="icon is-small is-left">
+                    <i class="fas fa-search"></i>
+                  </span>
+                </div>
+                <div class="control">
+                  <button class="button">
+                    <span class="icon"><i class="fas fa-search"></i></span>
+                  </button>
+                </div>
+              </div>
+            </form>
+
             <template x-if="user">
               <div class="navbar-item">
                 <a href="/me">
