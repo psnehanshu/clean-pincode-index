@@ -33,14 +33,11 @@
       }
 
       .result {
-        border-width: 1px;
-        border-color: transparent;
-        border-style: dashed;
         padding: 0.5rem;
-        border-radius: 8px;
+        padding-left: 1rem;
       }
       .result-focused {
-        border-color: hsl(0, 0%, 48%);
+        background-color: hsl(0, 2%, 90%);
       }
     </style>
 
@@ -254,37 +251,39 @@
                 </div>
                 <div
                   x-show="shouldShowResults"
-                  class="card"
                   style="
                     position: absolute;
                     top: 3.7em;
                     left: 0.5em;
                     z-index: 1;
+                    width: 100%;
+                    background-color: var(--bulma-scheme-main);
+                    box-shadow: var(--bulma-shadow);
+                    border-radius: var(--bulma-radius);
+                    overflow-x: hidden;
                   "
                 >
-                  <div class="card-content">
-                    <ul>
-                      <template x-for="(res, i) in results">
-                        <li
-                          class="result"
-                          :class="{'result-focused':currentlyFocused == i}"
-                        >
-                          <a
-                            x-text="formatItem(res)"
-                            :href="'/pincode/'+res.Pincode"
-                          ></a>
-                        </li>
-                      </template>
+                  <ul>
+                    <template x-for="(res, i) in results">
                       <li
-                        class="result is-flex is-justify-content-center"
-                        :class="{'result-focused':currentlyFocused == results.length}"
+                        class="result"
+                        :class="{'result-focused':currentlyFocused == i}"
                       >
-                        <button type="submit" class="button">
-                          View all results
-                        </button>
+                        <a
+                          x-text="formatItem(res)"
+                          :href="'/pincode/'+res.Pincode"
+                        ></a>
                       </li>
-                    </ul>
-                  </div>
+                    </template>
+                    <li
+                      class="result is-flex is-justify-content-center"
+                      :class="{'result-focused':currentlyFocused == results.length}"
+                    >
+                      <button type="submit" class="button">
+                        View all results
+                      </button>
+                    </li>
+                  </ul>
                 </div>
               </div>
             </form>
