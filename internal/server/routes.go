@@ -23,10 +23,17 @@ import (
 )
 
 // Mount routes
-func (s *Server) mountRoutes(app *fiber.App) {
-	cfSiteVerify := turnstile.New(os.Getenv("CF_SECRET_KEY"))
+func (s *Server) mountRoutes(router fiber.Router) {
+	rootRoutes(s, router)
+	authRoutes(s, router.Group("/auth"))
+	pincodeRoutes(s, router.Group("/pincode"))
+	voteRoutes(s, router.Group("/vote"))
+	stateRoutes(s, router.Group("/state"))
+	userRoutes(s, router.Group("/user"))
+}
 
-	app.Get("/", func(c *fiber.Ctx) error {
+func rootRoutes(s *Server, router fiber.Router) {
+	router.Get("/", func(c *fiber.Ctx) error {
 		mostUpvoted, err := s.queries.MostUpvoted(c.Context(), queries.MostUpvotedParams{Limit: 5})
 		if err != nil {
 			return fiber.NewError(http.StatusInternalServerError, "failed to get most upvoted pincodes")
@@ -40,63 +47,15 @@ func (s *Server) mountRoutes(app *fiber.App) {
 		return c.Render("views/index", fiber.Map{"MostUpvoted": mostUpvoted, "MostDownvoted": mostDownvoted})
 	})
 
-	app.Get("/me", func(c *fiber.Ctx) error {
-		user := s.getRequestUser(c)
-		if user != nil {
-			return c.Redirect(fmt.Sprintf("/user/%s", user.ID.String()))
-		}
-		return c.Redirect("/login?return=%2Fme")
-	})
-
-	app.Get("/login", func(c *fiber.Ctx) error {
-		user := s.getRequestUser(c)
-		if user != nil {
-			return c.Redirect("/")
-		}
-
-		return c.Render("views/login", fiber.Map{"ClientID": os.Getenv("GOOGLE_CLIENT_ID")})
-	})
-
-	app.Get("/user/:id", func(c *fiber.Ctx) error {
-		var userUUID pgtype.UUID
-		{
-			userIdStr := c.Params("id")
-			if userIdStr == "" {
-				return fiber.NewError(http.StatusNotFound)
-			}
-			if err := userUUID.Scan(userIdStr); err != nil {
-				return err
-			}
-		}
-
-		currentUser := s.getRequestUser(c)
-		var isCurrentUser bool
-		if currentUser != nil {
-			isCurrentUser = currentUser.ID == userUUID
-		}
-
-		user, err := s.queries.GetUserByID(c.Context(), userUUID)
-		if err != nil {
-			return err
-		}
-
-		memberDuration := time.Since(user.CreatedAt.Time)
-
-		return c.Render("views/user", fiber.Map{
-			"IsCurrentUser": isCurrentUser, "User": user,
-			"MemberDuration": durafmt.Parse(memberDuration).LimitFirstN(2).String(),
-		})
-	})
-
-	app.Get("/about", func(c *fiber.Ctx) error {
+	router.Get("/about", func(c *fiber.Ctx) error {
 		return c.Render("views/about", nil)
 	})
 
-	app.Get("/contact", func(c *fiber.Ctx) error {
+	router.Get("/contact", func(c *fiber.Ctx) error {
 		return c.Render("views/contact", nil)
 	})
 
-	app.Get("/leaderboard", func(c *fiber.Ctx) error {
+	router.Get("/leaderboard", func(c *fiber.Ctx) error {
 		mostUpvoted, err := s.queries.MostUpvoted(c.Context(), queries.MostUpvotedParams{Limit: 50})
 		if err != nil {
 			return fiber.NewError(http.StatusInternalServerError, "failed to get most upvoted pincodes")
@@ -107,7 +66,7 @@ func (s *Server) mountRoutes(app *fiber.App) {
 		})
 	})
 
-	app.Get("/looserboard", func(c *fiber.Ctx) error {
+	router.Get("/looserboard", func(c *fiber.Ctx) error {
 		mostDownvoted, err := s.queries.MostDownvoted(c.Context(), queries.MostDownvotedParams{Limit: 50})
 		if err != nil {
 			return fiber.NewError(http.StatusInternalServerError, "failed to get MostDownvoted pincodes")
@@ -118,7 +77,145 @@ func (s *Server) mountRoutes(app *fiber.App) {
 		})
 	})
 
-	app.Get("/pincode", func(c *fiber.Ctx) error {
+	router.Get("/search", func(c *fiber.Ctx) error {
+		searchQuery := strings.TrimSpace(c.Query("query"))
+		if ues, err := url.QueryUnescape(searchQuery); err != nil {
+			s.logger.Warnw("failed to unescape search term", "error", err, "query", searchQuery)
+		} else {
+			searchQuery = ues
+		}
+
+		if searchQuery == "" {
+			return fiber.NewError(http.StatusBadRequest, "Query must not be empty")
+		}
+
+		limit := c.QueryInt("limit", 20)
+		page := c.QueryInt("page", 1)
+		if limit < 1 {
+			limit = 1
+		}
+		if page < 1 {
+			page = 1
+		}
+
+		results, err := s.queries.Search(c.Context(), queries.SearchParams{
+			District: pgtype.Text{String: fmt.Sprintf("%%%s%%", searchQuery), Valid: true},
+			Limit:    int32(limit),
+			Offset:   int32((page - 1) * limit),
+		})
+		if err != nil {
+			return err
+		}
+
+		data := fiber.Map{
+			"Results": results, "Query": searchQuery,
+			"Count": len(results),
+			"Limit": limit, "Page": page,
+			"PrevPage": page - 1, "NextPage": page + 1,
+		}
+
+		if isAjaxReq(c) {
+			return c.JSON(data)
+		}
+
+		return c.Render("views/search", data)
+	})
+}
+
+func authRoutes(s *Server, router fiber.Router) {
+	router.Get("/login", func(c *fiber.Ctx) error {
+		user := s.getRequestUser(c)
+		if user != nil {
+			return c.Redirect("/")
+		}
+
+		return c.Render("views/login", fiber.Map{"ClientID": os.Getenv("GOOGLE_CLIENT_ID")})
+	})
+
+	router.Post("/google-login", func(c *fiber.Ctx) error {
+		// Extract credential from body
+		var data map[string]interface{}
+		if err := json.Unmarshal(c.Body(), &data); err != nil {
+			return fiber.NewError(http.StatusBadRequest, "invalid json")
+		}
+		credential, ok := data["credential"].(string)
+		if !ok {
+			return fiber.NewError(http.StatusBadRequest, "invalid json")
+		}
+
+		set, err := jwk.Fetch(c.Context(), "https://www.googleapis.com/oauth2/v3/certs")
+		if err != nil {
+			s.logger.Errorw("failed to fetch jwk", "error", err)
+			return fiber.NewError(http.StatusInternalServerError)
+		}
+
+		// Validate credential
+		time.Sleep(2 * time.Second) // sleeping to prevent iat validation error
+		token, err := jwt.Parse(
+			[]byte(credential),
+			jwt.WithKeySet(set),
+			jwt.WithAudience(os.Getenv("GOOGLE_CLIENT_ID")),
+			jwt.WithIssuer("https://accounts.google.com"),
+		)
+		if err != nil {
+			s.logger.Errorw("failed to parse token", "error", err)
+			return fiber.NewError(http.StatusUnauthorized)
+		}
+
+		user, err := s.getUserFromGoogleJwtToken(c, token)
+		if user == nil {
+			return nil
+		}
+		if err != nil {
+			return fiber.NewError(http.StatusInternalServerError)
+		}
+
+		// Set session
+		sess, err := s.sessionStore.Get(c)
+		if err != nil {
+			s.logger.Errorw("failed to get session", "error", err)
+			return fiber.NewError(http.StatusInternalServerError)
+		}
+
+		expiryDuration := time.Hour * 24 * 365
+		expiresAt := time.Now().Add(expiryDuration)
+		loginToken, err := generateLoginJWT(user, expiresAt)
+		if err != nil {
+			s.logger.Errorw("failed to generate login token", "error", err)
+			return fiber.NewError(http.StatusInternalServerError)
+		}
+
+		sess.Set("logged-in-user", loginToken)
+		sess.SetExpiry(expiryDuration)
+
+		if err := sess.Save(); err != nil {
+			s.logger.Errorw("failed to save session", "error", err)
+			return fiber.NewError(http.StatusInternalServerError)
+		}
+
+		return c.JSON(fiber.Map{"user": user})
+	})
+
+	router.Post("/logout", func(c *fiber.Ctx) error {
+		sess, err := s.sessionStore.Get(c)
+		if err != nil {
+			s.logger.Errorw("failed to get session", "error", err)
+			return fiber.NewError(http.StatusInternalServerError)
+		}
+
+		if err := sess.Destroy(); err != nil {
+			s.logger.Errorw("failed to destroy session", "error", err)
+			return fiber.NewError(http.StatusInternalServerError)
+		}
+
+		redirect := c.Query("return", "/")
+		return c.Redirect(redirect)
+	})
+
+}
+
+func pincodeRoutes(s *Server, router fiber.Router) {
+	router.Get("/", func(c *fiber.Ctx) error {
 		page, limit := c.QueryInt("page", 1), c.QueryInt("limit", 100)
 		if page < 1 {
 			page = 1
@@ -141,7 +238,7 @@ func (s *Server) mountRoutes(app *fiber.App) {
 		})
 	})
 
-	app.Get("/pincode/:pincode", func(c *fiber.Ctx) error {
+	router.Get("/:pincode", func(c *fiber.Ctx) error {
 		var pincode pgtype.Int4
 		if pint, err := strconv.ParseInt(c.Params("pincode"), 10, 32); err != nil {
 			return fiber.NewError(http.StatusBadRequest)
@@ -187,7 +284,7 @@ func (s *Server) mountRoutes(app *fiber.App) {
 		})
 	})
 
-	app.Get("/media/:id", func(c *fiber.Ctx) error {
+	router.Get("/media/:id", func(c *fiber.Ctx) error {
 		var id pgtype.UUID
 		if err := id.Scan(c.Params("id")); err != nil {
 			return err
@@ -205,8 +302,12 @@ func (s *Server) mountRoutes(app *fiber.App) {
 
 		return c.Redirect(url.String())
 	})
+}
 
-	app.Get("/vote", func(c *fiber.Ctx) error {
+func voteRoutes(s *Server, router fiber.Router) {
+	cfSiteVerify := turnstile.New(os.Getenv("CF_SECRET_KEY"))
+
+	router.Get("/", func(c *fiber.Ctx) error {
 		pincode := c.QueryInt("pin")
 		pincodeResult, err := s.queries.GetByPincode(c.Context(), pgtype.Int4{Int32: int32(pincode), Valid: true})
 		if err != nil {
@@ -250,7 +351,7 @@ func (s *Server) mountRoutes(app *fiber.App) {
 		})
 	})
 
-	app.Post("/vote", func(c *fiber.Ctx) error {
+	router.Post("/", func(c *fiber.Ctx) error {
 		user := s.getRequestUser(c)
 		if user == nil {
 			return fiber.NewError(http.StatusUnauthorized)
@@ -408,88 +509,10 @@ func (s *Server) mountRoutes(app *fiber.App) {
 
 		return c.Redirect(redirectTo)
 	})
+}
 
-	app.Post("/google-login", func(c *fiber.Ctx) error {
-		// Extract credential from body
-		var data map[string]interface{}
-		if err := json.Unmarshal(c.Body(), &data); err != nil {
-			return fiber.NewError(http.StatusBadRequest, "invalid json")
-		}
-		credential, ok := data["credential"].(string)
-		if !ok {
-			return fiber.NewError(http.StatusBadRequest, "invalid json")
-		}
-
-		set, err := jwk.Fetch(c.Context(), "https://www.googleapis.com/oauth2/v3/certs")
-		if err != nil {
-			s.logger.Errorw("failed to fetch jwk", "error", err)
-			return fiber.NewError(http.StatusInternalServerError)
-		}
-
-		// Validate credential
-		time.Sleep(2 * time.Second) // sleeping to prevent iat validation error
-		token, err := jwt.Parse(
-			[]byte(credential),
-			jwt.WithKeySet(set),
-			jwt.WithAudience(os.Getenv("GOOGLE_CLIENT_ID")),
-			jwt.WithIssuer("https://accounts.google.com"),
-		)
-		if err != nil {
-			s.logger.Errorw("failed to parse token", "error", err)
-			return fiber.NewError(http.StatusUnauthorized)
-		}
-
-		user, err := s.getUserFromGoogleJwtToken(c, token)
-		if user == nil {
-			return nil
-		}
-		if err != nil {
-			return fiber.NewError(http.StatusInternalServerError)
-		}
-
-		// Set session
-		sess, err := s.sessionStore.Get(c)
-		if err != nil {
-			s.logger.Errorw("failed to get session", "error", err)
-			return fiber.NewError(http.StatusInternalServerError)
-		}
-
-		expiryDuration := time.Hour * 24 * 365
-		expiresAt := time.Now().Add(expiryDuration)
-		loginToken, err := generateLoginJWT(user, expiresAt)
-		if err != nil {
-			s.logger.Errorw("failed to generate login token", "error", err)
-			return fiber.NewError(http.StatusInternalServerError)
-		}
-
-		sess.Set("logged-in-user", loginToken)
-		sess.SetExpiry(expiryDuration)
-
-		if err := sess.Save(); err != nil {
-			s.logger.Errorw("failed to save session", "error", err)
-			return fiber.NewError(http.StatusInternalServerError)
-		}
-
-		return c.JSON(fiber.Map{"user": user})
-	})
-
-	app.Post("/logout", func(c *fiber.Ctx) error {
-		sess, err := s.sessionStore.Get(c)
-		if err != nil {
-			s.logger.Errorw("failed to get session", "error", err)
-			return fiber.NewError(http.StatusInternalServerError)
-		}
-
-		if err := sess.Destroy(); err != nil {
-			s.logger.Errorw("failed to destroy session", "error", err)
-			return fiber.NewError(http.StatusInternalServerError)
-		}
-
-		redirect := c.Query("return", "/")
-		return c.Redirect(redirect)
-	})
-
-	app.Get("/state", func(c *fiber.Ctx) error {
+func stateRoutes(s *Server, router fiber.Router) {
+	router.Get("/", func(c *fiber.Ctx) error {
 		states, err := s.queries.GetStates(c.Context())
 		if err != nil {
 			return fiber.NewError(http.StatusInternalServerError, "failed to get states")
@@ -498,7 +521,7 @@ func (s *Server) mountRoutes(app *fiber.App) {
 		return c.Render("views/states", fiber.Map{"States": states})
 	})
 
-	app.Get("/state/:state", func(c *fiber.Ctx) error {
+	router.Get("/:state", func(c *fiber.Ctx) error {
 		state, err := url.QueryUnescape(c.Params("state"))
 		if err != nil {
 			return fiber.NewError(http.StatusBadRequest)
@@ -512,7 +535,7 @@ func (s *Server) mountRoutes(app *fiber.App) {
 		return c.Render("views/state", fiber.Map{"Districts": districts, "State": state})
 	})
 
-	app.Get("/state/:state/district/:district", func(c *fiber.Ctx) error {
+	router.Get("/:state/district/:district", func(c *fiber.Ctx) error {
 		state, err := url.QueryUnescape(c.Params("state"))
 		if err != nil {
 			return fiber.NewError(http.StatusBadRequest)
@@ -537,47 +560,45 @@ func (s *Server) mountRoutes(app *fiber.App) {
 		})
 	})
 
-	app.Get("/search", func(c *fiber.Ctx) error {
-		searchQuery := strings.TrimSpace(c.Query("query"))
-		if ues, err := url.QueryUnescape(searchQuery); err != nil {
-			s.logger.Warnw("failed to unescape search term", "error", err, "query", searchQuery)
-		} else {
-			searchQuery = ues
+}
+
+func userRoutes(s *Server, router fiber.Router) {
+	router.Get("/me", func(c *fiber.Ctx) error {
+		user := s.getRequestUser(c)
+		if user != nil {
+			return c.Redirect(fmt.Sprintf("/user/%s", user.ID.String()))
+		}
+		return c.Redirect("/auth/login?return=%2Fme")
+	})
+
+	router.Get("/:id", func(c *fiber.Ctx) error {
+		var userUUID pgtype.UUID
+		{
+			userIdStr := c.Params("id")
+			if userIdStr == "" {
+				return fiber.NewError(http.StatusNotFound)
+			}
+			if err := userUUID.Scan(userIdStr); err != nil {
+				return err
+			}
 		}
 
-		if searchQuery == "" {
-			return fiber.NewError(http.StatusBadRequest, "Query must not be empty")
+		currentUser := s.getRequestUser(c)
+		var isCurrentUser bool
+		if currentUser != nil {
+			isCurrentUser = currentUser.ID == userUUID
 		}
 
-		limit := c.QueryInt("limit", 20)
-		page := c.QueryInt("page", 1)
-		if limit < 1 {
-			limit = 1
-		}
-		if page < 1 {
-			page = 1
-		}
-
-		results, err := s.queries.Search(c.Context(), queries.SearchParams{
-			District: pgtype.Text{String: fmt.Sprintf("%%%s%%", searchQuery), Valid: true},
-			Limit:    int32(limit),
-			Offset:   int32((page - 1) * limit),
-		})
+		user, err := s.queries.GetUserByID(c.Context(), userUUID)
 		if err != nil {
 			return err
 		}
 
-		data := fiber.Map{
-			"Results": results, "Query": searchQuery,
-			"Count": len(results),
-			"Limit": limit, "Page": page,
-			"PrevPage": page - 1, "NextPage": page + 1,
-		}
+		memberDuration := time.Since(user.CreatedAt.Time)
 
-		if isAjaxReq(c) {
-			return c.JSON(data)
-		}
-
-		return c.Render("views/search", data)
+		return c.Render("views/user", fiber.Map{
+			"IsCurrentUser": isCurrentUser, "User": user,
+			"MemberDuration": durafmt.Parse(memberDuration).LimitFirstN(2).String(),
+		})
 	})
 }

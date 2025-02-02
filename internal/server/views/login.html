@@ -10,7 +10,7 @@
 
         try {
           const body = JSON.stringify(response);
-          const data = await fetch("/google-login", {
+          const data = await fetch("/auth/google-login", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",

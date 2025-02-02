@@ -23,9 +23,12 @@
       <ul class="grid">
         {{range .Pics}}
         <li class="cell">
-          <a href="/media/{{.ID.String}}" target="_blank">
+          <a href="/pincode/media/{{.ID.String}}" target="_blank">
             <figure class="image is-128x128">
-              <img src="/media/{{.ID.String}}" alt="A photo of this pincode" />
+              <img
+                src="/pincode/media/{{.ID.String}}"
+                alt="A photo of this pincode"
+              />
             </figure>
           </a>
         </li>

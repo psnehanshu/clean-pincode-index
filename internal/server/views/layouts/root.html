@@ -290,7 +290,7 @@
 
             <template x-if="user">
               <div class="navbar-item">
-                <a href="/me">
+                <a href="/user/me">
                   <div class="columns is-vcentered">
                     <div class="column is-one-quarter">
                       <figure class="image is-40x40">
@@ -308,7 +308,7 @@
             </template>
 
             <template x-if="!user">
-              <a href="/login" class="navbar-item">
+              <a href="/auth/login" class="navbar-item">
                 <span class="icon">
                   <i class="fa-solid fa-right-to-bracket"></i>
                 </span>
