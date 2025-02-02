@@ -4,7 +4,7 @@ import (
 	"os"
 
 	_ "github.com/joho/godotenv/autoload"
-	"github.com/psnehanshu/cleanpincode.in/internal/server"
+	"github.com/psnehanshu/clean-pincode-index/internal/server"
 )
 
 func main() {

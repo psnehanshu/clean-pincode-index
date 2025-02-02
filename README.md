@@ -1,4 +1,4 @@
-# CleanPincode.in
+# Clean Pincode Index
 
 A website that tracks the cleanliness of every pincode in India by crowdsourcing votes.
 

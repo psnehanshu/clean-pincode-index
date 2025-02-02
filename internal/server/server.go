@@ -17,7 +17,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
-	"github.com/psnehanshu/cleanpincode.in/internal/queries"
+	"github.com/psnehanshu/clean-pincode-index/internal/queries"
 	"go.uber.org/zap"
 )
 
@@ -105,7 +105,7 @@ func (s *Server) Start(addr string) error {
 
 	app.Use(func(c *fiber.Ctx) error {
 		if err := s.populateRequestUser(c); err != nil {
-			return err
+			s.logger.Error(err)
 		}
 
 		return c.Next()

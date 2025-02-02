@@ -1,4 +1,4 @@
-module github.com/psnehanshu/cleanpincode.in
+module github.com/psnehanshu/clean-pincode-index
 
 go 1.23.3
 

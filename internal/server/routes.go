@@ -16,8 +16,8 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/lestrrat-go/jwx/v3/jwk"
 	"github.com/lestrrat-go/jwx/v3/jwt"
-	"github.com/psnehanshu/cleanpincode.in/internal/queries"
-	"github.com/psnehanshu/cleanpincode.in/internal/turnstile"
+	"github.com/psnehanshu/clean-pincode-index/internal/queries"
+	"github.com/psnehanshu/clean-pincode-index/internal/turnstile"
 	"golang.org/x/sync/errgroup"
 )
 

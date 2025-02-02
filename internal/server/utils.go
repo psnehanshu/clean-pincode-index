@@ -18,7 +18,7 @@ import (
 	"github.com/lestrrat-go/jwx/v3/jwa"
 	"github.com/lestrrat-go/jwx/v3/jwt"
 	"github.com/minio/minio-go/v7"
-	"github.com/psnehanshu/cleanpincode.in/internal/queries"
+	"github.com/psnehanshu/clean-pincode-index/internal/queries"
 )
 
 func (s *Server) getUserFromGoogleJwtToken(c *fiber.Ctx, token jwt.Token) (*queries.User, error) {
@@ -157,8 +157,8 @@ func (s *Server) getStatesForPincodes(pincodes []queries.Pincode) []string {
 func generateLoginJWT(user *queries.User, expiry time.Time) (string, error) {
 	claims := jwt.New()
 	claims.Set(jwt.SubjectKey, user.ID.String())
-	claims.Set(jwt.IssuerKey, "cleanpincode.in")
-	claims.Set(jwt.AudienceKey, "cleanpincode.in")
+	claims.Set(jwt.IssuerKey, "clean-pincode-index")
+	claims.Set(jwt.AudienceKey, "clean-pincode-index")
 	claims.Set(jwt.IssuedAtKey, time.Now())
 	claims.Set(jwt.ExpirationKey, expiry)
 	claims.Set(jwt.NotBeforeKey, time.Now())
@@ -175,8 +175,8 @@ func getUserIdFromLoginJWT(token string) (string, error) {
 	t, err := jwt.Parse(
 		[]byte(token),
 		jwt.WithKey(jwa.HS256(), []byte(os.Getenv("JWT_PRIVATE_KEY"))),
-		jwt.WithAudience("cleanpincode.in"),
-		jwt.WithIssuer("cleanpincode.in"),
+		jwt.WithAudience("clean-pincode-index"),
+		jwt.WithIssuer("clean-pincode-index"),
 	)
 	if err != nil {
 		return "", err
