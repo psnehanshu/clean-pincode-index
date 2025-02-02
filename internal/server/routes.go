@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/hako/durafmt"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/lestrrat-go/jwx/v3/jwk"
@@ -262,8 +261,17 @@ func pincodeRoutes(s *Server, router fiber.Router) {
 			if err == pgx.ErrNoRows {
 				scoreboard.Pincode = pincode.Int32
 			} else {
-				return fiber.NewError(http.StatusInternalServerError, "failed to get pincode votes")
+				return fiber.NewError(http.StatusInternalServerError, "failed to fetch scoreboard")
 			}
+		}
+
+		// Fetch comments
+		comments, err := s.queries.GetVoteCommentsByPincode(c.Context(), queries.GetVoteCommentsByPincodeParams{
+			Pincode: pincode.Int32, Limit: 50, Offset: 0,
+		})
+		if err != nil {
+			s.logger.Errorw("failed to fetch votes", "error", err, "pincode", pincode)
+			return fiber.NewError(http.StatusInternalServerError, "failed to fetch comments")
 		}
 
 		// Fetch media
@@ -279,6 +287,8 @@ func pincodeRoutes(s *Server, router fiber.Router) {
 			"Scoreboard":  scoreboard,
 			"TotalVotes":  scoreboard.Upvotes - scoreboard.Downvotes,
 			"Pics":        pics,
+			"Comments":    comments,
+			"HasComments": len(comments) > 0,
 		})
 	})
 
@@ -592,11 +602,8 @@ func userRoutes(s *Server, router fiber.Router) {
 			return err
 		}
 
-		memberDuration := time.Since(user.CreatedAt.Time)
-
 		return c.Render("views/user", fiber.Map{
 			"IsCurrentUser": isCurrentUser, "User": user,
-			"MemberDuration": durafmt.Parse(memberDuration).LimitFirstN(2).String(),
 		})
 	})
 }

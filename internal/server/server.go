@@ -7,11 +7,13 @@ import (
 	"net/url"
 	"os"
 	"text/template"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/session"
 	pgStorage "github.com/gofiber/storage/postgres/v3"
 	"github.com/gofiber/template/html/v2"
+	"github.com/hako/durafmt"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
@@ -87,6 +89,10 @@ func (s *Server) Start(addr string) error {
 		},
 		"urlencode": func(v string) string {
 			return url.QueryEscape(v)
+		},
+		"time_passed": func(t time.Time, limit int) string {
+			duration := time.Since(t)
+			return durafmt.Parse(duration).LimitFirstN(limit).String()
 		},
 	})
 

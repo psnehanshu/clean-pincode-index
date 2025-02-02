@@ -39,7 +39,6 @@
 
   <div class="column is-one-third">
     <h2 class="is-size-5 has-text-centered">Scoreboard</h2>
-
     <table class="table is-striped is-hoverable is-fullwidth">
       <tr>
         <th>
@@ -69,5 +68,39 @@
         <td>{{.Scoreboard.Downvotes}}</td>
       </tr>
     </table>
+
+    {{if .HasComments}}
+    <h2 class="is-size-5 has-text-centered mb-2 mt-4">
+      Here's What People Are Saying
+    </h2>
+    <ul>
+      {{range .Comments}}
+      <li class="mb-2">
+        {{if eq .Type "up"}}
+        <span class="icon has-text-success" title="Upvoted">
+          <i class="fa-regular fa-thumbs-up"></i>
+        </span>
+        {{else}}
+        <span class="icon has-text-danger" title="Downvoted">
+          <i class="fa-regular fa-thumbs-down"></i>
+        </span>
+        {{end}}
+
+        <span>“<em>{{.Comment.String}}</em>”</span>
+        <span class="is-size-7 has-text-grey-light">
+          {{time_passed .CreatedAt.Time 1}} ago
+        </span>
+      </li>
+      {{end}}
+    </ul>
+    <div class="is-flex is-justify-content-center">
+      <a href="/pincode/{{.Pincode.Int32}}/comments" class="button is-small">
+        <span class="icon">
+          <i class="fa-regular fa-comments"></i>
+        </span>
+        <span>Read all comments</span>
+      </a>
+    </div>
+    {{end}}
   </div>
 </div>

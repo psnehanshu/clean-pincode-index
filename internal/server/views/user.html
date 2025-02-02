@@ -13,7 +13,7 @@
           {{if .IsCurrentUser}} (You) {{end}}
         </p>
         <p class="subtitle is-6 mt-1">
-          joined <strong>{{.MemberDuration}}</strong> ago
+          joined <strong>{{time_passed .User.CreatedAt.Time 2}}</strong> ago
         </p>
       </div>
     </div>

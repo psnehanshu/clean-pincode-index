@@ -54,7 +54,6 @@ FOR EACH ROW
 EXECUTE FUNCTION update_modified_column();
 
 
-
 CREATE TABLE vote_pics (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     link TEXT NOT NULL,

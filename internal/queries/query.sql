@@ -33,6 +33,12 @@ ORDER BY Pincode;
 SELECT * FROM scoreboard
 WHERE pincode = $1;
 
+-- name: GetVoteCommentsByPincode :many
+SELECT v.*, u.name voter_name, u.pic voter_pic FROM votes v
+LEFT JOIN users u on u.id = v.voter_id
+WHERE v.pincode = $1 AND v.comment IS NOT NULL AND TRIM(v.comment) <> ''
+ORDER BY v.created_at DESC LIMIT $2 OFFSET $3;
+
 -- name: MostUpvoted :many
 select
 	pincode,
