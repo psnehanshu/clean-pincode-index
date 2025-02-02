@@ -256,11 +256,11 @@ func pincodeRoutes(s *Server, router fiber.Router) {
 			return fiber.NewError(http.StatusNotFound, "pincode not found")
 		}
 
-		// Calculate votes
-		votes, err := s.queries.GetPincodeVotes(c.Context(), pincode.Int32)
+		// Calculate scoreboard
+		scoreboard, err := s.queries.GetPincodeScoreboard(c.Context(), pincode.Int32)
 		if err != nil {
 			if err == pgx.ErrNoRows {
-				votes.Pincode = pincode.Int32
+				scoreboard.Pincode = pincode.Int32
 			} else {
 				return fiber.NewError(http.StatusInternalServerError, "failed to get pincode votes")
 			}
@@ -272,14 +272,12 @@ func pincodeRoutes(s *Server, router fiber.Router) {
 			s.logger.Errorw("failed to fetch Pincode pics", "error", err, "pincode", pincode.Int32)
 		}
 
-		// generate public URLs for the pics
-
 		return c.Render("views/pincode", fiber.Map{
 			"PostOffices": pincodeResult,
 			"Pincode":     pincode,
 			"State":       strings.Join(s.getStatesForPincodes(pincodeResult), "/"),
-			"Votes":       votes,
-			"TotalVotes":  votes.Upvotes - votes.Downvotes,
+			"Scoreboard":  scoreboard,
+			"TotalVotes":  scoreboard.Upvotes - scoreboard.Downvotes,
 			"Pics":        pics,
 		})
 	})

@@ -29,8 +29,8 @@ SELECT DISTINCT Pincode FROM pincodes
 WHERE District = $1 AND StateName = $2
 ORDER BY Pincode;
 
--- name: GetPincodeVotes :one
-SELECT * FROM votes_by_pincode
+-- name: GetPincodeScoreboard :one
+SELECT * FROM scoreboard
 WHERE pincode = $1;
 
 -- name: MostUpvoted :many
@@ -38,7 +38,7 @@ select
 	pincode,
 	(upvotes-downvotes) total
 from
-	votes_by_pincode
+	scoreboard
 order by
 	(upvotes-downvotes) desc
 limit $1 offset $2;
@@ -48,7 +48,7 @@ select
 	pincode,
 	(upvotes-downvotes) total
 from
-	votes_by_pincode
+	scoreboard
 order by
 	(upvotes-downvotes) asc
 limit $1 offset $2;

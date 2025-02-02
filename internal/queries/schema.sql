@@ -65,7 +65,7 @@ ALTER TABLE vote_pics
 ADD CONSTRAINT votes_pics_fk
 FOREIGN KEY (vote_id) REFERENCES votes(id);
 
-CREATE OR REPLACE VIEW votes_by_pincode
+CREATE OR REPLACE VIEW scoreboard
 AS SELECT pincode,
     count(
         CASE
