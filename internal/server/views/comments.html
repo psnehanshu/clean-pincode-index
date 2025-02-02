@@ -1,0 +1,39 @@
+<h1 class="is-size-4 mb-4">
+  Comments on pincode {{.Pincode.Int32}}, {{.State}}
+</h1>
+
+<div class="notification">
+  To post a comment,
+  <a href="/vote?pin={{.Pincode.Int32}}">cast your vote</a>
+</div>
+
+<ul class="mb-4">
+  {{range .Comments}}
+  <li class="mb-2">
+    {{if eq .Type "up"}}
+    <span class="icon has-text-success" title="Upvoted">
+      <i class="fa-regular fa-thumbs-up"></i>
+    </span>
+    {{else}}
+    <span class="icon has-text-danger" title="Downvoted">
+      <i class="fa-regular fa-thumbs-down"></i>
+    </span>
+    {{end}}
+
+    <span>“<em>{{.Comment.String}}</em>”</span>
+    <span class="is-size-7 has-text-grey-light">
+      {{time_passed .CreatedAt.Time 1}} ago
+    </span>
+  </li>
+  {{end}}
+</ul>
+
+<hr />
+<nav class="pagination" role="navigation" aria-label="pagination">
+  <a class="pagination-previous" href="?limit={{.Limit}}&page={{.PrevPage}}">
+    Previous page
+  </a>
+  <a class="pagination-next" href="?limit={{.Limit}}&page={{.NextPage}}">
+    Next page
+  </a>
+</nav>

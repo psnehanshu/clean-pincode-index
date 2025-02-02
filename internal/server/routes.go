@@ -267,7 +267,7 @@ func pincodeRoutes(s *Server, router fiber.Router) {
 
 		// Fetch comments
 		comments, err := s.queries.GetVoteCommentsByPincode(c.Context(), queries.GetVoteCommentsByPincodeParams{
-			Pincode: pincode.Int32, Limit: 50, Offset: 0,
+			Pincode: pincode.Int32, Limit: 10, Offset: 0,
 		})
 		if err != nil {
 			s.logger.Errorw("failed to fetch votes", "error", err, "pincode", pincode)
@@ -289,6 +289,49 @@ func pincodeRoutes(s *Server, router fiber.Router) {
 			"Pics":        pics,
 			"Comments":    comments,
 			"HasComments": len(comments) > 0,
+		})
+	})
+
+	router.Get("/:pincode/comments", func(c *fiber.Ctx) error {
+		var pincode pgtype.Int4
+		if pint, err := strconv.ParseInt(c.Params("pincode"), 10, 32); err != nil {
+			return fiber.NewError(http.StatusBadRequest)
+		} else {
+			pincode.Int32 = int32(pint)
+			pincode.Valid = true
+		}
+
+		page, limit := c.QueryInt("page", 1), c.QueryInt("limit", 50)
+		if page < 1 {
+			page = 1
+		}
+		if limit < 1 {
+			limit = 1
+		}
+		offset := (page - 1) * limit
+
+		pincodeResult, err := s.queries.GetByPincode(c.Context(), pincode)
+		if err != nil {
+			return fiber.NewError(http.StatusInternalServerError, "failed to get pincode")
+		}
+
+		if len(pincodeResult) == 0 {
+			return fiber.NewError(http.StatusNotFound, "pincode not found")
+		}
+
+		comments, err := s.queries.GetVoteCommentsByPincode(c.Context(), queries.GetVoteCommentsByPincodeParams{
+			Pincode: pincode.Int32, Limit: int32(limit), Offset: int32(offset),
+		})
+		if err != nil {
+			s.logger.Errorw("failed to fetch votes", "error", err, "pincode", pincode)
+			return fiber.NewError(http.StatusInternalServerError, "failed to fetch comments")
+		}
+
+		return c.Render("views/comments", fiber.Map{
+			"Pincode":  pincode,
+			"State":    strings.Join(s.getStatesForPincodes(pincodeResult), "/"),
+			"Comments": comments,
+			"Limit":    limit, "Page": page, "NextPage": page + 1, "PrevPage": page - 1,
 		})
 	})
 
